@@ -7,6 +7,10 @@
 #define DEFAULTZOOM 40.0f
 #define FLIP olc::vf2d(1, -1)
 #define COMNULL olc::vd2d( std::numeric_limits<float>::max(), std::numeric_limits<float>::max() )
+#define DEBUG 0
+#define WARN 1
+#define ERR 2
+#define LOGTXT std::vector<std::string>{"DEBUG: ", "WARN: ", "ERROR: "}
 
 namespace TYPES
 {
@@ -22,6 +26,15 @@ public:
 	{
 		// Name your application
 		sAppName = "Physics Simulation!";
+	}
+
+	static void Log(int level, std::string msg)
+	{
+#if defined _DEBUG
+		std::cout << LOGTXT[level] << msg << std::endl;
+#else
+		//release
+#endif
 	}
 
 	struct collider;
@@ -432,7 +445,7 @@ public:
 						systemLocality.acc.y,
 						systemLocality.vel.y,
 						systemLocality.pos.y,
-						true
+						debug > 0
 					);
 
 					locality.setY(localityBuff.advanceY(timeY));
@@ -458,7 +471,7 @@ public:
 						systemLocality.acc.y,
 						systemLocality.vel.y,
 						systemLocality.pos.y,
-						true
+						debug > 0
 					);
 
 					locality.setY(localityBuff.advanceY(timeY));
@@ -894,8 +907,6 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		std::cout << GetKey(olc::CAPS_LOCK).bHeld << std::endl;
-
 		if (GetKey(olc::SPACE).bPressed)
 			pause = !pause;
 
@@ -959,8 +970,8 @@ public:
 		wall.update(fElapsedTime);
 		
 		block.col.isColliding(ground.col, fElapsedTime, 0, "Ground 1");
-		//block.col.isColliding(ground2.col, fElapsedTime, 3, "Ground 2");
-		block.col.isColliding(wall.col, fElapsedTime, 3, "Floor");
+		//block.col.isColliding(ground2.col, fElapsedTime, 0, "Ground 2");
+		block.col.isColliding(wall.col, fElapsedTime, 0, "Floor");
 
 		drawGrid(1);
 		block.drawSelf(this);
