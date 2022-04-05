@@ -3,13 +3,13 @@ A collection of small projects made in Visual C++ with Visual Studio 2019
 
 ## List of projects
 1. Pendulum (OLC PGE)
- * Simulation of pendulums
+    * Simulation of pendulums
 2. Memory Allocator
- * Unfinished memory alocation logic
+    * Unfinished memory alocation logic
 3. Physics Sim (OLC PGE)
- * A general physics simulation
+    * A general physics simulation
 4. Text Editor (OLC PGE)
- * A basic text editor mock-up
+    * A basic text editor mock-up
 
 The exicutables for each of these can be found in the Release folder
 
