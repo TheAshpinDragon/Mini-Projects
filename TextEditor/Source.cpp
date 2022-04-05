@@ -26,6 +26,11 @@ public:
 		std::cout << msg << std::endl;
 	}
 
+	static void Log(int msg)
+	{
+		std::cout << msg << std::endl;
+	}
+
 	struct Character {
 		char rawChar;
 
@@ -60,7 +65,7 @@ public:
 		olc::vi2d relitivePos;
 		int maxCharHeight;
 
-		Line() : maxCharHeight(8) { chars.push_back(new Character()); }
+		Line() : maxCharHeight(8) {  }
 
 		void AppendChar(Character* ch)
 		{
@@ -70,6 +75,11 @@ public:
 		void InsertChar(Character* ch, int ind)
 		{
 			chars.insert(chars.begin() + ind, ch);
+		}
+
+		void DeleteChar(int ind)
+		{
+			chars.erase(chars.begin() + ind);
 		}
 
 		void EndLine()
@@ -92,15 +102,17 @@ public:
 	};
 
 	struct Paragraph {
-		std::vector<Line*> lines;
-		eTextAlignment alignment;
-		olc::vi2d rootPos;
-		int indentLevel, spacing;
-		bool singleIndent, spaceBef, spaceAft;
+		std::vector<Line*> lines{};
+		eTextAlignment alignment{eTextAlignment::LEFT};
+		olc::vi2d rootPos{0, 0};
+		int indentLevel{0}, spacing{0};
+		bool singleIndent{false}, spaceBef{false}, spaceAft{false};
 
-		void DrawParagraph(TextEditor* editor)
+		Paragraph() { lines.push_back(new Line()); }
+		Paragraph(olc::vi2d pos) : rootPos(pos) { lines.push_back(new Line()); }
+
+		void DrawParagraph(TextEditor* editor, int& lineYPos)
 		{
-			int lineYPos = 0;
 			for (Line* l : lines)
 			{
 				l->DrawLine(editor, lineYPos);
@@ -113,10 +125,26 @@ public:
 			lines.erase(lines.begin() + ind);
 		}
 
+		void End()
+		{
+			lines[lines.size() - 1]->chars.push_back(new Character('\n'));
+		}
+
+		void RemoveEnd()
+		{
+			lines[lines.size() - 1]->DeleteChar(lines[lines.size() - 1]->chars.size() - 1);
+		}
+
 		int Size()
 		{
 			return lines.size();
 		}
+	};
+
+	struct CharPos {
+		int PAGE, PARA, LINE, CHAR;
+
+		CharPos(int page, int paragraph, int line, int character) : PAGE{ page }, PARA{ paragraph }, LINE{ line }, CHAR { character } {}
 	};
 
 	struct Page {
@@ -127,9 +155,18 @@ public:
 
 		Page() { paragraphs.push_back(new Paragraph()); }
 
+		void DrawPage(TextEditor* editor)
+		{
+			int paragraphYPos = 0;
+			for (Paragraph* para : paragraphs)
+			{
+				para->DrawParagraph(editor, paragraphYPos);
+			}
+		}
+		
 		void NewParagraph(Paragraph* para = nullptr)
 		{
-			if (para)
+			if (para != nullptr)
 				paragraphs.push_back(para);
 			else
 				paragraphs.push_back(new Paragraph());
@@ -137,40 +174,40 @@ public:
 
 		void DeleteLine(int ind)
 		{
-			//lines.erase(caretPos.GetPage()->lines.end() - 1);
-			olc::vi2d linePos = GetLinePos(ind);
+			CharPos linePos = GetLinePos(ind);
 
-			if (paragraphs[linePos.x]->Size() == 1)
-				paragraphs.erase(paragraphs.begin() + linePos.x);
-			
-			paragraphs[linePos.x]->DeleteLine(linePos.y);
+			paragraphs[linePos.PARA]->DeleteLine(linePos.LINE);
+
+			if (paragraphs[linePos.PARA]->Size() == 0)
+				paragraphs.erase(paragraphs.begin() + linePos.PARA);
+
+			if (linePos.PARA - 1 == paragraphs.size() - 1)
+				paragraphs[linePos.PARA - 1]->RemoveEnd();
 		}
 
-		void DrawPage(TextEditor* editor)
+		CharPos GetLinePos(int ind)
 		{
-			int lineYPos = 0;
-			for (Paragraph* para : paragraphs)
+			int paragraphInd = 0;
+
+			while (ind > paragraphs[paragraphInd]->Size() - 1)
 			{
-				para->DrawParagraph(editor);
+				ind -= paragraphs[paragraphInd]->Size();
+				paragraphInd++;
 			}
+
+			return CharPos{-1, paragraphInd, ind, -1};
 		}
-		
+
 		Line* GetLinePtr(int ind)
 		{
-			int paragraphInd = 0;
-
-			while (ind > paragraphs[paragraphInd]->Size() - 1) { ind -= paragraphs[paragraphInd++]->Size() - 1; }
-
-			return paragraphs[paragraphInd]->lines[ind];
+			CharPos pos = GetLinePos(ind);
+			return paragraphs[pos.PARA]->lines[pos.LINE];
 		}
 
-		olc::vi2d GetLinePos(int ind)
+		Paragraph* GetParagraphPtr(int lineInd)
 		{
-			int paragraphInd = 0;
-
-			while (ind > paragraphs[paragraphInd]->Size() - 1) { ind -= paragraphs[paragraphInd++]->Size() - 1; }
-
-			return {paragraphInd, ind};
+			CharPos pos = GetLinePos(lineInd);
+			return paragraphs[pos.PARA];
 		}
 
 		int GetLineNum()
@@ -241,11 +278,11 @@ public:
 
 	struct Document {
 
-		struct CharPos {
+		struct CaretPos {
 			Document* doc;
 			int PAGE = 0, LINE = 0, CHAR = 0;
 
-			CharPos(Document* document) : doc(document) {}
+			CaretPos(Document* document) : doc(document) {}
 
 			void DrawCaret(TextEditor* editor)
 			{
@@ -253,35 +290,44 @@ public:
 			}
 
 			Page* GetPage() { return doc->pages[PAGE]; }
+			Paragraph* GetParagraph() { return GetPage()->GetParagraphPtr(LINE); }
 			Line* GetLine() { return GetPage()->GetLinePtr(LINE); }
 			Character* GetChar() { return GetLine()->chars[CHAR]; }
 
 			// Navigate pages
 			bool PageUp() { if (PAGE > 0) { PAGE--; return true; } else return false; }
+			bool TryPageUp() { if (PAGE > 0) return true; else return false; }
 			bool PageDown() { if (doc->pages.size() - 1 > PAGE) { PAGE++; return true; } else return false; }
 			bool PageWrapUp() { if (PageUp()) { LINE = GetPage()->GetLineNum() - 1; return true; } else return false; }
+			bool TryPageWrapUp() { if (TryPageUp()) { return true; } else return false; }
 			bool PageWrapDown() { if (PageDown()) { LINE = 0; return true; } else return false; }
 
 			// Navigate lines
 			bool LineUp() { if (LINE > 0) { LINE--; return true; } else return PageWrapUp(); }
+			bool TryLineUp() { if (LINE > 0) { return true; } else return TryPageWrapUp(); }
 			bool LineDown() { if (GetPage()->GetLineNum() - 1 > LINE) { LINE++; return true; } else return PageWrapDown(); }
-			bool LineWrapUp() { if (LineUp()) { CHAR = GetLine()->chars.size() - 1; return true; } else return false; }
+			bool LineWrapUp() { if (LineUp()) { CHAR = GetLine()->chars.size(); return true; } else return false; }
 			bool LineWrapDown() { if (LineDown()) { CHAR = 0; return true; } else return false; }
-			bool LineEnd() { CHAR = GetLine()->chars.size() - 1; }
+			bool LineEnd() { CHAR = GetLine()->chars.size(); }
 			bool LineHome() { CHAR = 0; }
 
 			// Navigate characters
-			bool CharRight() { if (GetLine()->chars.size() - 1 > CHAR) { CHAR++; return true; } else return LineWrapDown(); }
+			bool CharRight() { if (GetLine()->chars.size() > CHAR) { CHAR++; return true; } else return LineWrapDown(); }
 			bool CharLeft() { if (CHAR > 0) { CHAR--; return true; } else return LineWrapUp(); }
-			bool TabRight() { if (GetLine()->chars.size() - 1 > CHAR + TAB_SIZE) { CHAR += TAB_SIZE; return true; } else return LineWrapDown(); }
+			bool TabRight() { if (GetLine()->chars.size() > CHAR + TAB_SIZE) { CHAR += TAB_SIZE; return true; } else return LineWrapDown(); }
 			bool TabLeft() { if (CHAR > TAB_SIZE) { CHAR -= TAB_SIZE; return true; } else return LineWrapUp(); }
+
+			std::string to_string()
+			{
+				return "CHAR: " + std::to_string(CHAR) + " LINE: " + std::to_string(LINE) + " PARAGRAPH: " + std::to_string(GetPage()->GetLinePos(LINE).PARA) + " PAGE: " + std::to_string(PAGE);
+			}
 
 			// TODO: Navigate to next space (ctrl + right/left)
 		};
 
 		std::string rawContent;
 		std::vector<Page*> pages;
-		CharPos caretPos = CharPos(this); // , selectionStart;
+		CaretPos caretPos = CaretPos(this); // , selectionStart;
 		// bool textSelected;
 		bool CAPSLOCK, NUMLOCK;
 		
@@ -351,10 +397,12 @@ public:
 		{
 			if(d == '\n')
 			{
-				caretPos.GetLine()->EndLine();
+				caretPos.GetParagraph()->End();
 				caretPos.GetPage()->NewParagraph();
 				rawContent += '\n';
 				caretPos.LineWrapDown();
+
+				Log(caretPos.to_string());
 				return;
 			}
 
@@ -372,27 +420,34 @@ public:
 			}
 
 			rawContent += d;
-			caretPos.GetChar()->rawChar = d;
-			caretPos.GetLine()->chars[caretPos.CHAR]->rawChar = d;
-			caretPos.GetLine()->chars.push_back(new Character());
+			caretPos.GetLine()->chars.push_back(new Character(d));
 			caretPos.CharRight();
+
+			Log("Draw char: " + std::string(1, d) + " " + caretPos.to_string());
 		}
 
 		void DeleteCharacter()
 		{
+			// Return if there is nothing to delete
 			if (rawContent.size() == 0)
 				return;
 
-			if (caretPos.CHAR == 0 && caretPos.CharLeft())
+			// If the current line is empty, remove it
+			if (caretPos.CHAR == 0 && caretPos.TryLineUp())
 			{
 				rawContent = rawContent.substr(0, rawContent.size() - 1);
 				caretPos.GetPage()->DeleteLine(caretPos.LINE);
+				caretPos.CharLeft();
+
+				//Log(caretPos.to_string());
 				return;
 			}
 
 			rawContent = rawContent.substr(0, rawContent.size() - 1);
-			caretPos.GetLine()->chars.erase(caretPos.GetLine()->chars.begin() + caretPos.CHAR);
+			caretPos.GetLine()->chars.erase(caretPos.GetLine()->chars.begin() + caretPos.CHAR - 1);
 			caretPos.CharLeft();
+
+			Log(caretPos.to_string());
 		}
 
 		void PollKeyboard(TextEditor* editor)
