@@ -115,7 +115,6 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-
 		return true;
 	}
 };
