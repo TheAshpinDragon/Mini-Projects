@@ -9,8 +9,9 @@
 #define COMNULL olc::vd2d( std::numeric_limits<float>::max(), std::numeric_limits<float>::max() )
 #define DEBUG 0
 #define WARN 1
-#define ERR 2
+#define ERROR 2
 #define LOGTXT std::vector<std::string>{"DEBUG: ", "WARN: ", "ERROR: "}
+#define STR std::to_string
 
 namespace TYPES
 {
@@ -30,11 +31,8 @@ public:
 
 	static void Log(int level, std::string msg)
 	{
-#if defined _DEBUG
-		std::cout << LOGTXT[level] << msg << std::endl;
-#else
-		//release
-#endif
+		if (_DEBUG)
+			std::cout << LOGTXT[level] << msg << std::endl;
 	}
 
 	struct collider;
@@ -46,9 +44,6 @@ public:
 		float	acc = 0.0f;
 
 		pos1d() = default;
-
-		//pos1d(float _pos, float _vel = 0.0f, float _acc = 0.0f)
-		//	: pos(_pos), vel(_vel), acc(_acc) {}
 
 		pos1d(float _pos, float _vel = 0.0f, float _acc = 0.0f)
 			: pos{ _pos }, vel{ _vel }, acc{ _acc } {}
@@ -257,8 +252,36 @@ public:
 			rotation.update(fElapsedTime);
 		}
 
+		virtual struct collisionReport {
+			collider &colA, &colB;
+			olc::vb2d collidingBefore, collidingAfter;
+			pos2d systemLocality;
+		};
+
+		virtual olc::vb2d isColliding(pos2d& _localityA, olc::vf2d _sizeA, pos2d& _localityB, olc::vf2d _sizeB)
+		{
+			// Get the geometric centers of each collider
+			olc::vf2d	thisGeometricCenter = _localityA.pos + _sizeA / 2.0f;
+			olc::vf2d	checkGeometricCenter = _localityB.pos + _sizeB / 2.0f;
+
+			// Get the total reach of the two colliders
+			olc::vf2d	reach = _sizeA / 2.0f + _sizeB / 2.0f;
+
+			// Get the distance between the objecs with respect to their geometric centers
+			olc::vf2d	distanceFromCenters = checkGeometricCenter - thisGeometricCenter;
+
+			// Checks X & Y if the objects have entered into each other's space
+			olc::vb2d   collideTopRight = distanceFromCenters <= reach,
+						collideBottomLeft = distanceFromCenters <= -reach;
+
+			// Final value, indicates if the X or Y has been entered
+			return		collideTopRight ^ collideBottomLeft;
+		}
+
+		virtual collisionReport generateReport() {}
+
 		// Checks for rectangle collision by default
-		virtual olc::vb2d isColliding(collider& _check, float fElapsedTIme, int debug = 0, std::string _name = "")
+		virtual olc::vb2d reactToCollision(collider& _check, float fElapsedTIme, int debug = 0, std::string _name = "")
 		{
 			bool debug1 = debug == 1;
 			bool debug2 = debug == 2;
@@ -282,8 +305,12 @@ public:
 			olc::vb2d   collideTopRightCurrent = distanceFromCentersCurrent <= reach,
 						collideBottomLeftCurrent = distanceFromCentersCurrent <= -reach;
 			
-			olc::vb2d	collidePrevious = collideTopRightPrevious ^ collideBottomLeftPrevious;
-			olc::vb2d	collideCurrent = collideTopRightCurrent ^ collideBottomLeftCurrent;
+			//olc::vb2d	collidePrevious = collideTopRightPrevious ^ collideBottomLeftPrevious;
+			//olc::vb2d	collideCurrent = collideTopRightCurrent ^ collideBottomLeftCurrent;
+
+
+			olc::vb2d	collidePrevious = isColliding(localityBuff, size, _check.localityBuff, _check.size);
+			olc::vb2d	collideCurrent = isColliding(locality, size, _check.locality, _check.size);
 
 			// Spearation before collision, after collision is when they collide
 			// Used for calculating when the collision occurs
@@ -434,9 +461,9 @@ public:
 			{
 				if (!collidePrevious.y && collideCurrent.x && collidePrevious.x) // just collided
 				{
-					if(debug2)
-						std::cout << "Y COLLIDE" << std::endl;
+					if (debug2) Log(DEBUG, "Y COLLIDE");
 
+					// Set the last colision to be Y
 					xLastColl = false;
 					yLastColl = true;
 
@@ -448,11 +475,12 @@ public:
 						debug > 0
 					);
 
+					// Bring the object back to the moment of colision
 					locality.setY(localityBuff.advanceY(timeY));
 					_check.locality.setY(_check.localityBuff.advanceY(timeY));
 
-					// Bounce, temp
-					locality.vel.y = -locality.vel.y / 2; // 
+					// Bounce
+					locality.vel.y = -locality.vel.y / 2;
 					_check.locality.vel.y = -_check.locality.vel.y / 2;
 						
 					if (timeY > 0.0f)
@@ -464,8 +492,7 @@ public:
 				}
 				else if (yLastColl && collidePrevious.y && collideCurrent.x && collidePrevious.x) // Sitting inside both previously and now (horizontal sit)
 				{
-					if (debug2)
-						std::cout << "Y SITTING" << std::endl;
+					if (debug2) Log(DEBUG, "Y SITTING");
 
 					float timeY = timeOfIntercept (
 						systemLocality.acc.y,
@@ -479,19 +506,13 @@ public:
 				}
 				else // X is sitting, Y is free (vertical slide)
 				{
-					if (debug2)
-						std::cout << "Y FREE" << std::endl;
+					if (debug2) Log(DEBUG, "Y FREE");
 
 					locality.vel.y /= 1.05;
 					_check.locality.vel.y /= 1.05;
-
-					//locality.updateY(fElapsedTIme);
-					//_check.locality.updateY(fElapsedTIme);
 				}
 
-
-				if (debug2)
-					std::cout << std::endl;
+				if (debug2) Log(DEBUG, "");
 			}
 			
 			return {false, false};
@@ -499,16 +520,14 @@ public:
 
 		float timeOfIntercept(float acc, float vel, float pos, bool debug = false) // float acc, float vel, float pos
 		{
-			if(debug)
-				std::cout << "Acc: " << acc << "   \tVel: " << vel << "\tPos: " << pos << std::endl;
+			if (debug) Log(DEBUG, "Acc: " + STR(acc) + "   \tVel: " + STR(vel) + "\tPos: " + STR(pos));
 
 			if (abs(acc) != 0.0f && abs(vel) != 0.0f) // If there is acceleration and velocity, use quadratic
 			{
 				// We only care about the positive solution
 				olc::vf2d times = solveQuadratic(0.5f * acc, vel, pos);
 
-				if(debug)
-					std::cout << "  QUAD solution: " << (pos > 0 ? times.x : times.y) << " FULL: " << times << std::endl;
+				if(debug) Log(DEBUG, "  QUAD solution: " + STR(pos > 0 ? times.x : times.y) + " FULL: " + STR(times));
 				
 				return pos < 0 ? times.x : times.y;
 			}
@@ -520,276 +539,28 @@ public:
 					-sqrt((abs(pos) * 2) / abs(acc))
 				};
 
-				if(debug)
-					std::cout << "  SQRT solution: " << (pos > 0 ? times.x : times.y) << " FULL: " << times << std::endl;
+				if (debug) Log(DEBUG, "  SQRT solution: " + STR(pos > 0 ? times.x : times.y) + " FULL: " + STR(times));
 
 				return pos < 0 ? times.x : times.y;
 			}
 			else if (abs(vel) != 0.0f) // else just divide
 			{
-				if(debug)
-					std::cout << "  DIVD solution: " << pos / vel << std::endl;
+				if (debug) Log(DEBUG, "  DIVD solution: " + STR(pos / vel));
 				return pos / vel;
 			}
 			else
 			{
-				if(debug)
-					std::cout << "  NONE solution: " << 0.0f << std::endl;
+				if (debug) Log(DEBUG, "  =NO= solution!");
 				return 0.0f;
 			}
 		}
-
-		/*
-		
-
-			if (collYcurrent)
-			{
-				pos2d avg = _check.localityBuff.flip() - localityBuff.flip();
-
-				if (collYcurrent && collXcurrent && collXbefore) //
-				{
-					// Check if it is sitting on the ground
-					if (avg.pos.y <= reach.y + ACCURACY)
-					{
-						//if (!onGround)
-							//std::cout << "On the ground!" << std::endl;
-						//onGround = true;
-					}
-					else if (avg.pos.y > reach.y + ACCURACY)
-					{
-						//if (onGround)
-							//std::cout << "In the air!" << std::endl;
-						//onGround = false;
-					}
-
-					// Find the time of collison
-					float timeY = timeOfIntercept(avg.acc.y, avg.vel.y, avg.pos.y - reach.y);
-
-					//std::cout << "Y Pos: " << avg.pos.y << "\t  Y Reach: " << reach.y << "    Time: " << timeY << " Frame time: " << fElapsedTIme << std::endl;
-
-					//if (!onGround)
-					//{
-						//std::cout << "Self localtiy: \n" << localityBuff << std::endl;
-						//std::cout << "other locality:\n" << _check.localityBuff << std::endl;
-						//std::cout << "diff locality: \n" << avg << std::endl;
-
-						// Advance by timeY, pos will now be touching the other object
-
-						std::cout << "BEF: \n" << locality << std::endl;
-						locality.setY(localityBuff.advanceY(timeY));
-						_check.locality.setY(_check.localityBuff.advanceY(timeY));
-						std::cout << "AFT: \n" << locality << std::endl;
-
-						// Bounce, temp
-						locality.vel.y = abs(locality.vel.y / 2); //
-						_check.locality.vel.y = abs(_check.locality.vel.y / 2); //
-
-						if (timeY > 0.0f)
-						{
-							// Advance by remainder of time, unless touching the ground
-							//locality.updateY(fElapsedTIme - timeY);
-							//_check.locality.updateY(fElapsedTIme - timeY);
-						}
-					//}
-					//else
-					//{
-					//	// Advance by timeY, counteract downword acceleration
-					//	locality.setY(localityBuff.advanceY(timeY));
-					//	_check.locality.setY(_check.localityBuff.advanceY(timeY));
-					//}
-				}
-			}
-
-		
-		*/
-
-		/*
-		
-
-		// Checks for rectangle collision by default
-		virtual bool isColliding(object& _check, float fElapsedTIme)
-		{
-			olc::vf2d diffCurr = -locality.pos + _check.col.locality.pos;
-			olc::vf2d reach = _check.col.size / 2 + size / 2;
-			//olc::vf2d diffBuff = -localityBuff.pos + _check.col.localityBuff.pos;
-
-			//bool collYbefore = abs(diffBuff.y) < reach.y, collYcurrent = abs(diffCurr.y) < reach.y;
-			//bool collXbefore = abs(diffBuff.x) < reach.x, collXcurrent = abs(diffCurr.x) < reach.x;
-
-			//std::cout << "Diff: \n" << diff << std::endl;
-
-			if (abs(diffCurr.y) < reach.y)
-			{
-				pos2d avg = _check.col.localityBuff.flip() - localityBuff.flip();
-				avg.pos.y -= reach.y;
-				//std::cout << "Self localtiy: \n" << localityBuff << std::endl;
-				//std::cout << "other locality:\n" << _check.col.localityBuff << std::endl;
-				//std::cout << "diff locality: \n" << avg << std::endl;
-
-				if (avg.pos.y == 0.0f) // reach.y Sitting on a surface
-				{
-					if(!onGround)
-						std::cout << "On the ground!" << std::endl;
-					onGround = true;
-				}
-				else
-				{
-					if (onGround)
-						std::cout << "In the air!" << std::endl;
-					onGround = false;
-				}
-
-
-
-				/*
-				float timeY = 0.0f;
-				if (avg.acc.y != 0.0f && avg.vel.y != 0.0f) // If there is acceleration and velocity, use quadratic
-				{
-					// We only care about the positive solution
-					olc::vf2d timesY =  solveQuadratic(0.5f * avg.acc.y, avg.vel.y, avg.pos.y);
-
-					std::cout << " Possible solutions: " << timesY << std::endl;
-					timeY = std::max(timesY.x, timesY.y);
-				}
-				else if (avg.acc.y > 0.0f) // If just acceleration, use sqrt
-					timeY = sqrt((avg.pos.y * 2) / avg.acc.y);
-				else if(avg.vel.y > 0.0f) // else just divide
-					timeY = avg.pos.y / avg.vel.y;
-				
-		float timeY = timeOfIntercept(avg.acc.y, avg.vel.y, avg.pos.y);
-
-		// SOLVE: position they collided
-
-		//std::cout << "Time of collision: quadratic: " << timeY << " liniar: " << abs(avg.pos.y / avg.vel.y) << " TOT: " << fElapsedTIme << std::endl;
-
-
-		//if (onGround)
-		//	locality = localityBuff;
-
-		//if(!onGround)
-		locality = localityBuff.advance(timeY);
-
-		//std::cout << "New prev vel: \n" << locality << std::endl;
-
-		if (!onGround)
-			locality.vel.y = abs(locality.vel.y) / 2;
-
-		//if(!onGround)
-			//locality.update(fElapsedTIme - timeY);
-
-		//std::cout << "New final vel: \n" << locality << std::endl << std::endl;
-
-		return true;
-			}
-
-
-			return false;
-		}
-
-		
-		*/
-
-		/*
-		
-
-		// Checks for rectangle collision by default
-		virtual bool isColliding(object& _check, float fElapsedTIme)
-		{
-			olc::vf2d reach = _check.col.size / 2 + size / 2;
-			olc::vf2d diffCurr =-locality.pos + _check.col.locality.pos;
-			olc::vf2d diffBuff = -localityBuff.pos + _check.col.localityBuff.pos;
-
-			bool collYbefore = abs(diffBuff.y) < reach.y, collYcurrent = abs(diffCurr.y) < reach.y;
-			bool collXbefore = abs(diffBuff.x) < reach.x, collXcurrent = abs(diffCurr.x) < reach.x;
-
-			//std::cout << "Diff: \n" << diff << std::endl;
-
-			if (collYcurrent || collXcurrent)
-			{
-				pos2d avg = _check.col.localityBuff.flip() - localityBuff.flip();
-
-
-				if (collYcurrent && collXcurrent && collXbefore)
-				{
-					//std::cout << "Self localtiy: \n" << localityBuff << std::endl;
-					//std::cout << "other locality:\n" << _check.col.localityBuff << std::endl;
-					//std::cout << "diff locality: \n" << avg << std::endl;
-
-					if (avg.pos.y == reach.y) // Sitting on a surface
-					{
-						//std::cout << "Im zero!" << std::endl;
-						onGround = true;
-						return true;
-					}
-					else
-						onGround = false;
-
-					/*
-					float timeY = 0.0f;
-					if (avg.acc.y != 0.0f && avg.vel.y != 0.0f) // If there is acceleration and velocity, use quadratic
-					{
-						// We only care about the positive solution
-						olc::vf2d timesY =  solveQuadratic(0.5f * avg.acc.y, avg.vel.y, avg.pos.y);
-
-						//std::cout << " Possible solutions: " << timesY << std::endl;
-						timeY = std::max(timesY.x, timesY.y);
-					}
-					else if (avg.acc.y > 0.0f) // If just acceleration, use sqrt
-						timeY = sqrt((avg.pos.y * 2) / avg.acc.y);
-					else if(avg.vel.y > 0.0f) // else just divide
-						timeY = avg.pos.y / avg.vel.y;
-					
-		float timeY = timeOfIntercept(avg.acc.y, avg.vel.y, avg.pos.y - reach.y);
-
-		// SOLVE: position they collided
-
-		//std::cout << "Time of collision: quadratic: " << timeY << " liniar: " << abs(avg.pos.y / avg.vel.y) << " TOT: " << fElapsedTIme << std::endl;
-
-		locality = localityBuff.advance(timeY);
-
-		//std::cout << "New prev vel: \n" << locality << std::endl;
-
-		locality.vel.y = abs(locality.vel.y) / 2;
-
-		locality.update(fElapsedTIme - timeY);
-
-		//std::cout << "New final vel: \n" << locality << std::endl << std::endl;
-
-		return true;
-				}
-
-			}
-
-
-			return false;
-		}
-
-		float timeOfIntercept(float acc, float vel, float pos) // float acc, float vel, float pos
-		{
-			//float timeY = 0.0f;
-			if (acc != 0.0f && vel != 0.0f) // If there is acceleration and velocity, use quadratic
-			{
-				// We only care about the positive solution
-				olc::vf2d timesY = solveQuadratic(0.5f * acc, vel, pos);
-
-				//std::cout << "  Possible solutions: " << timesY << std::endl;
-				return std::max(timesY.x, timesY.y);
-			}
-			else if (acc > 0.0f) // If just acceleration, use sqrt
-				return sqrt((pos * 2) / acc);
-			else if (vel > 0.0f) // else just divide
-				return pos / vel;
-		}
-
-		
-		*/
 
 		olc::vf2d solveQuadratic(float a, float b, float c)
 		{
 			if (a <= 0.000001f && a >= -0.000001f)
 				return { 0,0 };
 
-			olc::vf2d roots = solveSquareRoot((b * b) - 4 * a * c); // sqrt((b * b) - 4 * a * c);
+			olc::vf2d roots = solveSquareRoot((b * b) - 4 * a * c);
 
 			olc::vf2d out = { ((-b) + roots.x) / (2 * a), ((-b) + roots.y) / (2 * a) };
 
@@ -804,9 +575,11 @@ public:
 
 		olc::vf2d solveSquareRoot(float radicand)
 		{
+			// Shortcut
 			if (abs(radicand) == 0.0f)
 				return {0, 0};
 
+			// Return +- square root of radicand
 			return {sqrt(radicand), -sqrt(radicand)};
 		}
 	};
@@ -940,7 +713,7 @@ public:
 			drawGrid(1);
 			block.drawSelf(this);
 			ground.drawSelf(this);
-			//ground2.drawSelf(this);
+			ground2.drawSelf(this);
 			wall.drawSelf(this);
 
 			DrawString({ 0,0 }, screenToWorld(GetMousePos()).str());
@@ -966,17 +739,17 @@ public:
 
 		block.update(fElapsedTime);
 		ground.update(fElapsedTime);
-		//ground2.update(fElapsedTime);
+		ground2.update(fElapsedTime);
 		wall.update(fElapsedTime);
 		
-		block.col.isColliding(ground.col, fElapsedTime, 0, "Ground 1");
-		//block.col.isColliding(ground2.col, fElapsedTime, 0, "Ground 2");
-		block.col.isColliding(wall.col, fElapsedTime, 0, "Floor");
+		block.col.reactToCollision(ground.col, fElapsedTime, 0, "Ground 1");
+		block.col.reactToCollision(ground2.col, fElapsedTime, 0, "Ground 2");
+		block.col.reactToCollision(wall.col, fElapsedTime, 0, "Floor");
 
 		drawGrid(1);
 		block.drawSelf(this);
 		ground.drawSelf(this);
-		//ground2.drawSelf(this);
+		ground2.drawSelf(this);
 		wall.drawSelf(this);
 
 		DrawString({0,0}, screenToWorld(GetMousePos()).str());

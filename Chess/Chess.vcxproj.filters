@@ -28,5 +28,8 @@
     <Image Include="ChessPiecesArray.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="ChessBoard.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
