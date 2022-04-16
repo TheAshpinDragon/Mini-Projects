@@ -2,14 +2,14 @@
 #include "olcPixelGameEngine.h"
 
 
-#define WPWN new Piece(PAWN, WHITE, PawnLogic(true))
+#define WPWN new Piece(PAWN, WHITE, PieceLogic(PAWN))
 #define WROK new Piece(ROOK, WHITE)
 #define WKNT new Piece(KNIGHT, WHITE)
 #define WBSP new Piece(BISHOP, WHITE)
 #define WQUN new Piece(QUEEN, WHITE)
 #define WKNG new Piece(KING, WHITE)
 
-#define BPWN new Piece(PAWN, BLACK, PawnLogic(true))
+#define BPWN new Piece(PAWN, BLACK, PieceLogic(PAWN))
 #define BROK new Piece(ROOK, BLACK)
 #define BKNT new Piece(KNIGHT, BLACK)
 #define BBSP new Piece(BISHOP, BLACK)
@@ -191,23 +191,13 @@ public:
 	};
 
 	struct PieceLogic {
+	public:
 		bool firstMove;
-		//PieceType eType;
+		PieceType eType;
 
-		//PieceLogic() : firstMove( true ) { }
-		PieceLogic(bool move) : firstMove( move ) { }
+	private:
 
-		virtual std::vector<Move> runLogic(Piece* piece, GameBoard& board) { return std::vector<Move>(); }
-		operator PawnLogic() { return PawnLogic(firstMove); }
-	};
-
-	struct PawnLogic : public PieceLogic {
-		typedef PieceLogic super;
-
-		//PawnLogic() : super() {}
-		PawnLogic(bool move) : super(move) {}
-
-		std::vector<Move> runLogic(Piece* piece, GameBoard& board) override
+		std::vector<Move> pawnLogic(Piece* piece, GameBoard& board) 
 		{
 			std::vector<Move> moves;
 			olc::vi2d pos = piece->pos;
@@ -256,16 +246,89 @@ public:
 			return moves;
 		}
 
-
-	};
-
-	struct RookLogic : public PieceLogic {
-		std::vector<Move> runLogic(Piece* piece, GameBoard& board) override
+		std::vector<Move> bishopLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
 			olc::vi2d pos = piece->pos;
+			int forword = piece->eColor == PieceColor::WHITE ? -1 : +1;
+			PieceColor enemy = piece->eColor == PieceColor::WHITE ? PieceColor::BLACK : PieceColor::WHITE;
 
 			return moves;
+		}
+
+		std::vector<Move> knightLogic(Piece* piece, GameBoard& board)
+		{
+			std::vector<Move> moves;
+			olc::vi2d pos = piece->pos;
+			int forword = piece->eColor == PieceColor::WHITE ? -1 : +1;
+			PieceColor enemy = piece->eColor == PieceColor::WHITE ? PieceColor::BLACK : PieceColor::WHITE;
+
+			return moves;
+		}
+
+		std::vector<Move> rookLogic(Piece* piece, GameBoard& board)
+		{
+			std::vector<Move> moves;
+			olc::vi2d pos = piece->pos;
+			int forword = piece->eColor == PieceColor::WHITE ? -1 : +1;
+			PieceColor enemy = piece->eColor == PieceColor::WHITE ? PieceColor::BLACK : PieceColor::WHITE;
+
+			return moves;
+		}
+
+		std::vector<Move> kingLogic(Piece* piece, GameBoard& board)
+		{
+			std::vector<Move> moves;
+			olc::vi2d pos = piece->pos;
+			int forword = piece->eColor == PieceColor::WHITE ? -1 : +1;
+			PieceColor enemy = piece->eColor == PieceColor::WHITE ? PieceColor::BLACK : PieceColor::WHITE;
+
+			return moves;
+		}
+
+		std::vector<Move> queenLogic(Piece* piece, GameBoard& board)
+		{
+			std::vector<Move> moves;
+			olc::vi2d pos = piece->pos;
+			int forword = piece->eColor == PieceColor::WHITE ? -1 : +1;
+			PieceColor enemy = piece->eColor == PieceColor::WHITE ? PieceColor::BLACK : PieceColor::WHITE;
+
+			return moves;
+		}
+
+	public:
+		PieceLogic(PieceType type) : firstMove( true ), eType( type ) { }
+
+		std::vector<Move> runLogic(Piece* piece, GameBoard& board)
+		{
+			switch (eType)
+			{
+			case PAWN:
+				return pawnLogic(piece, board);
+				break;
+			case BISHOP:
+				//return pawnLogic(piece, board);
+				return std::vector<Move>();
+				break;
+			case KNIGHT:
+				//return pawnLogic(piece, board);
+				return std::vector<Move>();
+				break;
+			case ROOK:
+				//return pawnLogic(piece, board);
+				return std::vector<Move>();
+				break;
+			case KING:
+				//return pawnLogic(piece, board);
+				return std::vector<Move>();
+				break;
+			case QUEEN:
+				//return pawnLogic(piece, board);
+				return std::vector<Move>();
+				break;
+			default:
+				return std::vector<Move>();
+			}
 		}
 	};
 
@@ -278,7 +341,7 @@ public:
 		bool displayMoves;
 
 		Piece(PieceType type, PieceColor color)
-			: eType{ type }, eColor{ color }, logic( PieceLogic( true ) ), pos{ 0,0 }, displayMoves{ false } {}
+			: eType{ type }, eColor{ color }, logic( PieceLogic( type ) ), pos{ 0,0 }, displayMoves{ false } {}
 
 		Piece(PieceType type, PieceColor color, PieceLogic piecelogic)
 			: eType{ type }, eColor{ color }, logic{ piecelogic }, pos{ 0,0 }, displayMoves{ false } {}
@@ -306,6 +369,9 @@ public:
 			for(Move m : moves)
 				if (m.endPos == tryPos)
 				{
+					// No longer first move
+					logic.firstMove = false;
+
 					// If there is a second piece effected
 					if (m.secondaryPiece)
 					{
@@ -329,9 +395,7 @@ public:
 
 		void updLogic(GameBoard* board)
 		{
-			moves = ((PawnLogic)logic).runLogic(this, *board);
-
-			if (logic.firstMove) logic.firstMove = false;
+			moves = logic.runLogic(this, *board);
 		}
 	};
 
@@ -386,29 +450,66 @@ public:
 
 		vi2dPair findOnHorizontal(olc::vi2d start)
 		{
-			bool endL = false, endR = false;
+			bool endR = false, endL = false;
 			vi2dPair out;
 
-			for (int i = 1; !endL || !endR; i++)
+			for (int i = 1; !endR || !endL; i++)
 			{
+				// Never runs into a piece, vector stays as -1, -1
 				if (!endR && !bounded({ start.x + i, start.y }))
 					endR = true;
+				// Runs into a piece, vector becomes that position
 				else if (!endR && isPieceAt({ start.x + i, start.y }))
 				{
-					out.a = { start.x + i - 1, start.y };
+					out.a = { start.x + i, start.y };
 					endR = true;
 				}
 
-				if (!endR && !bounded({ start.x - i, start.y }))
-					endR = true;
-				else if (!endR && isPieceAt({ start.x - i, start.y }))
+				// Never runs into a piece, vector stays as -1, -1
+				if (!endL && !bounded({ start.x - i, start.y }))
+					endL = true;
+				// Runs into a piece, vector becomes that position
+				else if (!endL && isPieceAt({ start.x - i, start.y }))
 				{
-					out.a = { start.x - i - 1, start.y };
-					endR = true;
+					out.b = { start.x - i, start.y };
+					endL = true;
 				}
 			}
+
+			return out;
 		}
-		vi2dPair findOnVertical(olc::vi2d start) {}
+
+		vi2dPair findOnVertical(olc::vi2d start)
+		{
+
+			bool endD = false, endU = false;
+			vi2dPair out;
+
+			for (int i = 1; !endD || !endU; i++)
+			{
+				// Never runs into a piece, vector stays as -1, -1
+				if (!endD && !bounded({ start.x, start.y + i }))
+					endD = true;
+				// Runs into a piece, vector becomes that position
+				else if (!endD && isPieceAt({ start.x, start.y + i }))
+				{
+					out.a = { start.x, start.y + i };
+					endD = true;
+				}
+
+				// Never runs into a piece, vector stays as -1, -1
+				if (!endU && !bounded({ start.x, start.y - i }))
+					endU = true;
+				// Runs into a piece, vector becomes that position
+				else if (!endU && isPieceAt({ start.x, start.y - i }))
+				{
+					out.b = { start.x, start.y - i };
+					endU = true;
+				}
+			}
+
+			return out;
+		}
 
 		olc::vi2d screenToBoard(olc::vi2d pos) { return { pos.x / 64, pos.y / 64 }; }
 
@@ -494,10 +595,6 @@ public:
 		Clear(olc::BACK);
 		DrawDecal({ 0,0 }, chessBoardPNG.decal, {0.81f, 0.81f}, olc::Pixel(220, 220, 220));
 		board.drawBoard(this);
-
-		//for (int i = 0; i < chessPieceSheet.rowColumn.x; i++)
-		//	for (int k = 0; k < chessPieceSheet.rowColumn.y; k++)
-		//		DrawDecal(olc::vi2d{ i, k } * 64 + olc::vi2d{ 7, 7 }, chessPieceSheet.decals[i][k]);
 
 		return true;
 	}
