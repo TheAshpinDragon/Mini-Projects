@@ -338,60 +338,140 @@ public:
 
 	private:
 
-		std::vector<Move> pawnLogic(Piece* piece, GameBoard& board) 
-		{
-			std::vector<Move> moves;
-			bool debug = Debug::DebugPieceLogic & Debug::Pawn;
-
-			// Single move forword - Must have one empty space
-			if (board.boundedInMap({ piece->pos.x, piece->pos.y + piece->direction }) && !board.isPieceAt({ piece->pos.x, piece->pos.y + piece->direction }))
-			{
-				moves.push_back(Move(piece->pos, { piece->pos.x, piece->pos.y + piece->direction }, MoveType::FIXED));
-
-				// Double move forword - Must have one additional empty space
-				if (firstMove && !board.isPieceAtBounded({ piece->pos.x, piece->pos.y + 2 * piece->direction }))
-					moves.push_back(Move(piece->pos, { piece->pos.x, piece->pos.y + 2 * piece->direction }, MoveType::FIXED));
-			}
-
-			// Attack left
-			if (board.isPieceAtBounded({ piece->pos.x - 1, piece->pos.y + piece->direction }, piece->eEnemyColor))
-				moves.push_back(Move(piece->pos, { piece->pos.x - 1, piece->pos.y + piece->direction }, MoveType::FIXED_AND_ATTACK, board.getPieceAt({ piece->pos.x - 1, piece->pos.y + piece->direction })));
-			// Attack right
-			if (board.isPieceAtBounded({ piece->pos.x + 1, piece->pos.y + piece->direction }, piece->eEnemyColor))
-				moves.push_back(Move(piece->pos, { piece->pos.x + 1, piece->pos.y + piece->direction }, MoveType::FIXED_AND_ATTACK, board.getPieceAt({ piece->pos.x + 1, piece->pos.y + piece->direction })));
-
-			// En Passant left
-			/*if (board.bounded  ({ pos.x - 1, pos.y + forword }) &&
-				board.isPieceAtBounded({ pos.x - 1, pos.y }, enemy) &&
-				board.getPieceAt({ pos.x - 1, pos.y })->eType == PieceType::PAWN &&
-				board.getPieceAt({ pos.x - 1, pos.y })->logic.doubleMoved)
-					moves.push_back(Move({ pos.x - 1, pos.y + forword }, MoveType::EN_PASSANT, board.getPieceAt({ pos.x - 1, pos.y })));
-			// En Passant right
-			if (board.bounded  ({ pos.x + 1, pos.y + forword }) &&
-				board.isPieceAtBounded({ pos.x + 1, pos.y }, enemy) &&
-				board.getPieceAt({ pos.x - 1, pos.y })->eType == PieceType::PAWN &&
-				board.getPieceAt({ pos.x - 1, pos.y })->logic.doubleMoved)
-					moves.push_back(Move({ pos.x + 1, pos.y + forword }, MoveType::EN_PASSANT, board.getPieceAt({ pos.x + 1, pos.y })));*/
-
-			// Rank up if desired
-			if (!board.boundedInMap({ piece->pos.x, piece->pos.y + piece->direction }))
-				moves.push_back(Move(piece->pos, { piece->pos.x, piece->pos.y }, MoveType::RANK_UP));
-			/*
-			Log("Moves: " + std::to_string(moves.size()));
-
-			for (Move m : moves)
-				Log("  " + moveToString(m.eType));
-*/
-			return moves;
-		}
-
-		std::vector<Move> bishopLogic(Piece* piece, GameBoard& board)
+		std::vector<Move> lineLogic(Piece* piece, GameBoard& board, bool debug)
 		{
 			std::vector<Move> moves;
 			Game::vb2dPair bordered = board.isPieceOnBoarder(piece->pos);
-			bool debug = Debug::DebugPieceLogic & Debug::Bishop;
 
-			if (debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
+			// ==== HORIZONTAL ==== //
+			Game::vi2dPair horizontalEnds = board.findOnHorizontal(piece->pos);
+
+			// Never meets any piece on right
+			if (horizontalEnds.a == olc::vi2d{ -1, -1 })
+			{
+				if (debug) Log("  No enemy on right");
+				if (!bordered.a.y)
+				{
+					if (debug) Log("    NOT BORDERING");
+					moves.push_back(Move(piece->pos, { 7, piece->pos.y }, MoveType::LINE));
+				}
+			}
+			// Meets ally at position 'a' to the right
+			else if (board.getPieceAt(horizontalEnds.a)->eColor != piece->eEnemyColor)
+			{
+				olc::vi2d adjustedRightPos = { horizontalEnds.a.x - 1, horizontalEnds.a.y };
+				if (debug) Log("  Ally at right: " + horizontalEnds.a.str());
+				if (adjustedRightPos != piece->pos)
+				{
+					if (debug) Log("    NOT COLOCATED");
+					moves.push_back(Move(piece->pos, adjustedRightPos, MoveType::LINE));
+				}
+			}
+			// Meets enemy at position 'a' to the right
+			else if (board.getPieceAt(horizontalEnds.a)->eColor == piece->eEnemyColor)
+			{
+				if (debug) Log("  Enemy at position: " + horizontalEnds.a.str());
+				moves.push_back(Move(piece->pos, horizontalEnds.a, MoveType::LINE_AND_ATTACK, board.getPieceAt(horizontalEnds.a)));
+			}
+
+			// Never meets any piece on left
+			if (horizontalEnds.b == olc::vi2d{ -1, -1 })
+			{
+				if (debug) Log("  No enemy on left");
+				if (!bordered.a.x)
+				{
+					if (debug) Log("    NOT BORDERING");
+					moves.push_back(Move(piece->pos, { 0, piece->pos.y }, MoveType::LINE));
+				}
+			}
+			// Meets ally at position 'b' to the left
+			else if (board.getPieceAt(horizontalEnds.b)->eColor != piece->eEnemyColor)
+			{
+				olc::vi2d adjustedLeftPos = { horizontalEnds.b.x + 1, horizontalEnds.b.y };
+				if (debug) Log("  Ally at left: " + horizontalEnds.b.str());
+				if (adjustedLeftPos != piece->pos)
+				{
+					if (debug) Log("    NOT COLOCATED");
+					moves.push_back(Move(piece->pos, adjustedLeftPos, MoveType::LINE));
+				}
+			}
+			// Meets enemy at position 'b' to the left
+			else if (board.getPieceAt(horizontalEnds.b)->eColor == piece->eEnemyColor)
+			{
+				if (debug) Log("  Enemy at position: " + horizontalEnds.b.str());
+				moves.push_back(Move(piece->pos, horizontalEnds.b, MoveType::LINE_AND_ATTACK, board.getPieceAt(horizontalEnds.b)));
+			}
+
+			// ==== VERTICAL ==== //
+			Game::vi2dPair verticalEnds = board.findOnVertical(piece->pos);
+
+			// Never meets any piece forword
+			if (verticalEnds.a == olc::vi2d{ -1, -1 })
+			{
+				if (debug) Log("  No enemy up");
+				if (!bordered.b.y)
+				{
+					if (debug) Log("    NOT BORDERING");
+					moves.push_back(Move(piece->pos, { piece->pos.x, 0 }, MoveType::LINE));
+				}
+			}
+			// Meets ally at position 'a' forword
+			else if (board.getPieceAt(verticalEnds.a)->eColor != piece->eEnemyColor)
+			{
+				olc::vi2d adjustedForwordPos = { verticalEnds.a.x, verticalEnds.a.y + 1 };
+				if (debug) Log("  Ally at up: " + verticalEnds.a.str());
+				if (adjustedForwordPos != piece->pos)
+				{
+					if (debug) Log("    NOT COLOCATED");
+					moves.push_back(Move(piece->pos, adjustedForwordPos, MoveType::LINE));
+				}
+			}
+			// Meets enemy at position 'a' forword
+			else if (board.getPieceAt(verticalEnds.a)->eColor == piece->eEnemyColor)
+			{
+				if (debug) Log("  Enemy at position: " + verticalEnds.a.str());
+				moves.push_back(Move(piece->pos, verticalEnds.a, MoveType::LINE_AND_ATTACK, board.getPieceAt(verticalEnds.a)));
+			}
+
+			// Never meets any piece backword
+			if (verticalEnds.b == olc::vi2d{ -1, -1 })
+			{
+				if (debug) Log("  No enemy down");
+				if (!bordered.b.x)
+				{
+					if (debug) Log("    NOT BORDERING");
+					moves.push_back(Move(piece->pos, { piece->pos.x, 7 }, MoveType::LINE));
+				}
+			}
+			// Meets ally at position 'b' backword
+			else if (board.getPieceAt(verticalEnds.b)->eColor != piece->eEnemyColor)
+			{
+				olc::vi2d adjustedBackwordPos = { verticalEnds.b.x, verticalEnds.b.y - 1 };
+				if (debug) Log("  Ally at down: " + verticalEnds.b.str());
+				if (adjustedBackwordPos != piece->pos)
+				{
+					if (debug) Log("    NOT COLOCATED");
+					moves.push_back(Move(piece->pos, adjustedBackwordPos, MoveType::LINE));
+				}
+			}
+			// Meets enemy at position 'b' backword
+			else if (board.getPieceAt(verticalEnds.b)->eColor == piece->eEnemyColor)
+			{
+				if (debug) Log("  Enemy at position: " + verticalEnds.b.str());
+				moves.push_back(Move(piece->pos, verticalEnds.b, MoveType::LINE_AND_ATTACK, board.getPieceAt(verticalEnds.b)));
+			}
+
+
+			if (debug) Log("  Horizontal: " + horizontalEnds.a.str() + ", " + horizontalEnds.b.str() + " Vertical: " + verticalEnds.a.str() + ", " + verticalEnds.b.str() +
+				" Moves: " + std::to_string(moves.size()));
+
+			return moves;
+		}
+
+		std::vector<Move> diagonalLogic(Piece* piece, GameBoard& board, bool debug)
+		{
+			std::vector<Move> moves;
+			Game::vb2dPair bordered = board.isPieceOnBoarder(piece->pos);
 
 			// ==== HORIZONTAL ==== //
 			Game::vi2dPair positiveDiagonalEnds = board.findOnPositiveDiagonal(piece->pos);
@@ -518,6 +598,66 @@ public:
 					" Boardering: (l,r) " + bordered.a.str() + ", (b,t)" + bordered.b.str() +
 					" Moves: " + std::to_string(moves.size()));
 
+			return moves;
+		}
+
+		std::vector<Move> pawnLogic(Piece* piece, GameBoard& board) 
+		{
+			std::vector<Move> moves;
+			bool debug = Debug::DebugPieceLogic & Debug::Pawn;
+
+			// Single move forword - Must have one empty space
+			if (board.boundedInMap({ piece->pos.x, piece->pos.y + piece->direction }) && !board.isPieceAt({ piece->pos.x, piece->pos.y + piece->direction }))
+			{
+				moves.push_back(Move(piece->pos, { piece->pos.x, piece->pos.y + piece->direction }, MoveType::FIXED));
+
+				// Double move forword - Must have one additional empty space
+				if (firstMove && !board.isPieceAtBounded({ piece->pos.x, piece->pos.y + 2 * piece->direction }))
+					moves.push_back(Move(piece->pos, { piece->pos.x, piece->pos.y + 2 * piece->direction }, MoveType::FIXED));
+			}
+
+			// Attack left
+			if (board.isPieceAtBounded({ piece->pos.x - 1, piece->pos.y + piece->direction }, piece->eEnemyColor))
+				moves.push_back(Move(piece->pos, { piece->pos.x - 1, piece->pos.y + piece->direction }, MoveType::FIXED_AND_ATTACK, board.getPieceAt({ piece->pos.x - 1, piece->pos.y + piece->direction })));
+			// Attack right
+			if (board.isPieceAtBounded({ piece->pos.x + 1, piece->pos.y + piece->direction }, piece->eEnemyColor))
+				moves.push_back(Move(piece->pos, { piece->pos.x + 1, piece->pos.y + piece->direction }, MoveType::FIXED_AND_ATTACK, board.getPieceAt({ piece->pos.x + 1, piece->pos.y + piece->direction })));
+
+			// En Passant left
+			/*if (board.bounded  ({ pos.x - 1, pos.y + forword }) &&
+				board.isPieceAtBounded({ pos.x - 1, pos.y }, enemy) &&
+				board.getPieceAt({ pos.x - 1, pos.y })->eType == PieceType::PAWN &&
+				board.getPieceAt({ pos.x - 1, pos.y })->logic.doubleMoved)
+					moves.push_back(Move({ pos.x - 1, pos.y + forword }, MoveType::EN_PASSANT, board.getPieceAt({ pos.x - 1, pos.y })));
+			// En Passant right
+			if (board.bounded  ({ pos.x + 1, pos.y + forword }) &&
+				board.isPieceAtBounded({ pos.x + 1, pos.y }, enemy) &&
+				board.getPieceAt({ pos.x - 1, pos.y })->eType == PieceType::PAWN &&
+				board.getPieceAt({ pos.x - 1, pos.y })->logic.doubleMoved)
+					moves.push_back(Move({ pos.x + 1, pos.y + forword }, MoveType::EN_PASSANT, board.getPieceAt({ pos.x + 1, pos.y })));*/
+
+			// Rank up if desired
+			if (!board.boundedInMap({ piece->pos.x, piece->pos.y + piece->direction }))
+				moves.push_back(Move(piece->pos, { piece->pos.x, piece->pos.y }, MoveType::RANK_UP));
+			/*
+			Log("Moves: " + std::to_string(moves.size()));
+
+			for (Move m : moves)
+				Log("  " + moveToString(m.eType));
+*/
+			return moves;
+		}
+
+		std::vector<Move> bishopLogic(Piece* piece, GameBoard& board)
+		{
+			std::vector<Move> moves;
+			Game::vb2dPair bordered = board.isPieceOnBoarder(piece->pos);
+			bool debug = Debug::DebugPieceLogic & Debug::Bishop;
+
+			if (debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
+
+			moves = diagonalLogic(piece, board, debug);
+
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
 
@@ -542,127 +682,7 @@ public:
 
 			if(debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
 
-			// ==== HORIZONTAL ==== //
-			Game::vi2dPair horizontalEnds = board.findOnHorizontal(piece->pos);
-
-			// Never meets any piece on right
-			if (horizontalEnds.a == olc::vi2d{ -1, -1 })
-			{
-				if (debug) Log("  No enemy on right");
-				if (!bordered.a.y)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, { 7, piece->pos.y }, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'a' to the right
-			else if (board.getPieceAt(horizontalEnds.a)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedRightPos = { horizontalEnds.a.x - 1, horizontalEnds.a.y };
-				if (debug) Log("  Ally at right: " + horizontalEnds.a.str());
-				if (adjustedRightPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedRightPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'a' to the right
-			else if (board.getPieceAt(horizontalEnds.a)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy at position: " + horizontalEnds.a.str());
-				moves.push_back(Move(piece->pos, horizontalEnds.a, MoveType::LINE_AND_ATTACK, board.getPieceAt(horizontalEnds.a)));
-			}
-
-			// Never meets any piece on left
-			if (horizontalEnds.b == olc::vi2d{ -1, -1 })
-			{
-				if (debug) Log("  No enemy on left");
-				if (!bordered.a.x)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, { 0, piece->pos.y }, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'b' to the left
-			else if (board.getPieceAt(horizontalEnds.b)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedLeftPos = { horizontalEnds.b.x + 1, horizontalEnds.b.y };
-				if (debug) Log("  Ally at left: " + horizontalEnds.b.str());
-				if (adjustedLeftPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedLeftPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'b' to the left
-			else if (board.getPieceAt(horizontalEnds.b)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy at position: " + horizontalEnds.b.str());
-				moves.push_back(Move(piece->pos, horizontalEnds.b, MoveType::LINE_AND_ATTACK, board.getPieceAt(horizontalEnds.b)));
-			}
-
-			// ==== VERTICAL ==== //
-			Game::vi2dPair verticalEnds = board.findOnVertical(piece->pos);
-
-			// Never meets any piece forword
-			if (verticalEnds.a == olc::vi2d{ -1, -1 })
-			{
-				if (debug) Log("  No enemy up");
-				if(!bordered.b.y)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, { piece->pos.x, 0 }, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'a' forword
-			else if (board.getPieceAt(verticalEnds.a)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedForwordPos = { verticalEnds.a.x, verticalEnds.a.y + 1 };
-				if (debug) Log("  Ally at up: " + verticalEnds.a.str());
-				if (adjustedForwordPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedForwordPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'a' forword
-			else if (board.getPieceAt(verticalEnds.a)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy at position: " + verticalEnds.a.str());
-				moves.push_back(Move(piece->pos, verticalEnds.a, MoveType::LINE_AND_ATTACK, board.getPieceAt(verticalEnds.a)));
-			}
-
-			// Never meets any piece backword
-			if (verticalEnds.b == olc::vi2d{ -1, -1 })
-			{
-				if (debug) Log("  No enemy down");
-				if(!bordered.b.x)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, { piece->pos.x, 7 }, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'b' backword
-			else if (board.getPieceAt(verticalEnds.b)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedBackwordPos = { verticalEnds.b.x, verticalEnds.b.y - 1 };
-				if (debug) Log("  Ally at down: " + verticalEnds.b.str());
-				if (adjustedBackwordPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedBackwordPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'b' backword
-			else if (board.getPieceAt(verticalEnds.b)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy at position: " + verticalEnds.b.str());
-				moves.push_back(Move(piece->pos, verticalEnds.b, MoveType::LINE_AND_ATTACK, board.getPieceAt(verticalEnds.b)));
-			}
-
-
-			if (debug) Log("  Horizontal: " + horizontalEnds.a.str() + ", " + horizontalEnds.b.str() + " Vertical: " + verticalEnds.a.str() + ", " + verticalEnds.b.str() +
-				" Moves: " + std::to_string(moves.size()));
+			moves = lineLogic(piece, board, debug);
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
@@ -683,9 +703,18 @@ public:
 		std::vector<Move> queenLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
-			olc::vi2d pos = piece->pos;
-			int forword = piece->eColor == PieceColor::WHITE ? -1 : +1;
-			PieceColor enemy = getOpositeColor(piece->eColor);
+			Game::vb2dPair bordered = board.isPieceOnBoarder(piece->pos);
+			bool debug = Debug::DebugPieceLogic & Debug::Queen;
+
+			if (debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
+
+			moves = lineLogic(piece, board, debug);
+
+			std::vector<Move> diagonalMoves = diagonalLogic(piece, board, debug);
+			moves.insert(moves.end(), diagonalMoves.begin(), diagonalMoves.end());
+
+			if (debug) for (Move m : moves)
+				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
 
 			return moves;
 		}
@@ -1117,7 +1146,7 @@ public:
 		chessPieceSheet.loadAsset(this);
 		chessBoardPNG.loadAsset(this);
 
-		Debug::DebugPieceLogic |= Debug::Bishop;
+		Debug::DebugPieceLogic |= Debug::Queen;
 
 		board.updateAllLogic();
 
