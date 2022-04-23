@@ -622,6 +622,7 @@ namespace olc
 		v2d_generic  ceil() const { return v2d_generic(std::ceil(x), std::ceil(y)); }
 		v2d_generic  max(const v2d_generic& v) const { return v2d_generic(std::max(x, v.x), std::max(y, v.y)); }
 		v2d_generic  min(const v2d_generic& v) const { return v2d_generic(std::min(x, v.x), std::min(y, v.y)); }
+		v2d_generic  abs() { return { (T)std::abs(x), (T)std::abs(y) }; }
 		v2d_generic  cart() { return { std::cos(y) * x, std::sin(y) * x }; }
 		v2d_generic  polar() { return { mag(), std::atan2(y, x) }; }
 		T dot(const v2d_generic& rhs) const { return this->x * rhs.x + this->y * rhs.y; }
@@ -667,13 +668,18 @@ namespace olc
 	// To stop dandistine crying...
 	template<class T, class U> inline bool operator < (const v2d_generic<T>& lhs, const v2d_generic<U>& rhs)
 	{ return lhs.y < rhs.y || (lhs.y == rhs.y && lhs.x < rhs.x); }
+	template<class T, class U> inline bool operator <= (const v2d_generic<T>& lhs, const v2d_generic<U>& rhs)
+	{ return lhs.y <= rhs.y && lhs.x <= rhs.x; }
 	template<class T, class U> inline bool operator > (const v2d_generic<T>& lhs, const v2d_generic<U>& rhs)
 	{ return lhs.y > rhs.y || (lhs.y == rhs.y && lhs.x > rhs.x); }
+	template<class T, class U> inline bool operator >= (const v2d_generic<T>& lhs, const v2d_generic<U>& rhs)
+	{ return lhs.y >= rhs.y && lhs.x >= rhs.x; }
 
 	typedef v2d_generic<int32_t> vi2d;
 	typedef v2d_generic<uint32_t> vu2d;
 	typedef v2d_generic<float> vf2d;
 	typedef v2d_generic<double> vd2d;
+	typedef v2d_generic<bool> vb2d;
 #endif
 
 
