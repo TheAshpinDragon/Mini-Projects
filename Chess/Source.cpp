@@ -197,7 +197,7 @@ public:
 
 		void drawSelf(Chess* pge) 
 		{
-			bool fixed = eType == MoveType::FIXED || eType == MoveType::DOUBLE_MOVE || eType == MoveType::EN_PASSANT;
+			bool fixed = eType == MoveType::FIXED || eType == MoveType::FIXED_AND_ATTACK || eType == MoveType::DOUBLE_MOVE || eType == MoveType::EN_PASSANT;
 			bool line = eType == MoveType::LINE || eType == MoveType::LINE_AND_ATTACK;
 			bool attack = eType == MoveType::FIXED_AND_ATTACK || eType == MoveType::LINE_AND_ATTACK;
 
@@ -338,6 +338,57 @@ public:
 
 	private:
 
+		int getQuadrent(olc::vi2d slope)
+		{
+			if (slope == olc::vi2d{ 1, 1 })
+				return 1;
+			else if (slope == olc::vi2d{ -1, 1 })
+				return 2;
+			else if (slope == olc::vi2d{ -1, -1 })
+				return 3;
+			else if (slope == olc::vi2d{ 1, -1 })
+				return 4;
+		}
+
+		Move* checkLinelMove(Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug)
+		{
+			olc::vi2d diff = end - piece->pos,
+				slope = diff / diff.abs();
+
+			int quadrent = getQuadrent(slope);
+
+			// Never meets any piece in given quadrent
+			if (end == piece->pos || (board.isPieceOnAnyBoarder(end) && !board.getPieceAt(end)))
+			{
+				if (debug) Log("  No enemy in quadrent " + std::to_string(quadrent));
+				if (isBordering)
+				{
+					if (debug) Log("    NOT BORDERING");
+					return new Move(piece->pos, end, MoveType::LINE);
+				}
+			}
+			// Meets ally at position end in given quadrent
+			else if (board.getPieceAt(end)->eColor != piece->eEnemyColor)
+			{
+				olc::vi2d adjustedPos = end - slope;
+
+				if (debug) Log("  Ally in quadrent " + std::to_string(quadrent) + ": " + end.str());
+				if (adjustedPos != piece->pos)
+				{
+					if (debug) Log("    NOT COLOCATED");
+					return new Move(piece->pos, adjustedPos, MoveType::LINE);
+				}
+			}
+			// Meets enemy at position end in given quadrent
+			else if (board.getPieceAt(end)->eColor == piece->eEnemyColor)
+			{
+				if (debug) Log("  Enemy in quadrent " + std::to_string(quadrent) + ": " + end.str());
+				return new Move(piece->pos, end, MoveType::LINE_AND_ATTACK, board.getPieceAt(end));
+			}
+
+			return nullptr;
+		}
+
 		std::vector<Move> lineLogic(Piece* piece, GameBoard& board, bool debug)
 		{
 			std::vector<Move> moves;
@@ -468,6 +519,43 @@ public:
 			return moves;
 		}
 
+		Move* checkDiagonalMove(Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
+		{
+			// Never meets any piece in given quadrent
+			if (end == piece->pos || (board.isPieceOnAnyBoarder(end) && !board.getPieceAt(end)))
+			{
+				if (debug) Log("  No enemy in quadrent " + std::to_string(quadrent));
+				if (isBordering)
+				{
+					if (debug) Log("    NOT BORDERING");
+					return new Move(piece->pos, end, MoveType::LINE);
+				}
+			}
+			// Meets ally at position end in given quadrent
+			else if (board.getPieceAt(end)->eColor != piece->eEnemyColor)
+			{
+				olc::vi2d diff = end - piece->pos,
+				slope = diff / diff.abs();
+
+				olc::vi2d adjustedPos = end - slope;
+
+				if (debug) Log("  Ally in quadrent " + std::to_string(quadrent) + ": " + end.str());
+				if (adjustedPos != piece->pos)
+				{
+					if (debug) Log("    NOT COLOCATED");
+					return new Move(piece->pos, adjustedPos, MoveType::LINE);
+				}
+			}
+			// Meets enemy at position end in given quadrent
+			else if (board.getPieceAt(end)->eColor == piece->eEnemyColor)
+			{
+				if (debug) Log("  Enemy in quadrent " + std::to_string(quadrent) + ": " + end.str());
+				return new Move(piece->pos, end, MoveType::LINE_AND_ATTACK, board.getPieceAt(end));
+			}
+
+			return nullptr;
+		}
+
 		std::vector<Move> diagonalLogic(Piece* piece, GameBoard& board, bool debug)
 		{
 			std::vector<Move> moves;
@@ -476,120 +564,14 @@ public:
 			// ==== HORIZONTAL ==== //
 			Game::vi2dPair positiveDiagonalEnds = board.findOnPositiveDiagonal(piece->pos);
 
-			// Never meets any piece in 1st quadrent
-			if (positiveDiagonalEnds.a == piece->pos || (board.isPieceOnAnyBoarder(positiveDiagonalEnds.a) && !board.getPieceAt(positiveDiagonalEnds.a)))
-			{
-				if (debug) Log("  No enemy in 1st quadrent");
-				if (!bordered.a.y && !bordered.b.y)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, positiveDiagonalEnds.a, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'a' in 1st quadrent
-			else if (board.getPieceAt(positiveDiagonalEnds.a)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedRightPos = { positiveDiagonalEnds.a.x - 1, positiveDiagonalEnds.a.y + 1 };
-				if (debug) Log("  Ally in 1st quadrent: " + positiveDiagonalEnds.a.str());
-				if (adjustedRightPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedRightPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'a' in 1st quadrent
-			else if (board.getPieceAt(positiveDiagonalEnds.a)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy in 1st quadrent: " + positiveDiagonalEnds.a.str());
-				moves.push_back(Move(piece->pos, positiveDiagonalEnds.a, MoveType::LINE_AND_ATTACK, board.getPieceAt(positiveDiagonalEnds.a)));
-			}
-
-			// Never meets any piece in 3rd quadrent
-			if (positiveDiagonalEnds.b == piece->pos || (board.isPieceOnAnyBoarder(positiveDiagonalEnds.b) && !board.getPieceAt(positiveDiagonalEnds.b)))
-			{
-				if (debug) Log("  No enemy in 3rd quadrent");
-				if (!bordered.a.x && !bordered.b.x)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, positiveDiagonalEnds.b, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'b' in 3rd quadrent
-			else if (board.getPieceAt(positiveDiagonalEnds.b)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedLeftPos = { positiveDiagonalEnds.b.x + 1, positiveDiagonalEnds.b.y - 1 };
-				if (debug) Log("  Ally in 3rd quadrent: " + positiveDiagonalEnds.b.str());
-				if (adjustedLeftPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedLeftPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'b' in 3rd quadrent
-			else if (board.getPieceAt(positiveDiagonalEnds.b)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy in 3rd quadrent: " + positiveDiagonalEnds.b.str());
-				moves.push_back(Move(piece->pos, positiveDiagonalEnds.b, MoveType::LINE_AND_ATTACK, board.getPieceAt(positiveDiagonalEnds.b)));
-			}
+			if (auto move = checkDiagonalMove(piece, positiveDiagonalEnds.a, !bordered.a.y && !bordered.b.y, board, debug, 1)) moves.push_back(*move);
+			if (auto move = checkDiagonalMove(piece, positiveDiagonalEnds.b, !bordered.a.x && !bordered.b.x, board, debug, 2)) moves.push_back(*move);
 
 			// ==== VERTICAL ==== //
 			Game::vi2dPair negitiveDiagonalEnds = board.findOnNegitiveDiagonal(piece->pos);
 
-			// Never meets any piece in 2nd quadrent
-			if (negitiveDiagonalEnds.a == piece->pos || (board.isPieceOnAnyBoarder(negitiveDiagonalEnds.a) && !board.getPieceAt(negitiveDiagonalEnds.a)))
-			{
-				if (debug) Log("  No enemy in 2nd quadrent");
-				if (!bordered.a.x && !bordered.b.y)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, negitiveDiagonalEnds.a, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'a' forword
-			else if (board.getPieceAt(negitiveDiagonalEnds.a)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedForwordPos = { negitiveDiagonalEnds.a.x + 1, negitiveDiagonalEnds.a.y + 1 };
-				if (debug) Log("  Ally at in 2nd quadrent: " + negitiveDiagonalEnds.a.str());
-				if (adjustedForwordPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedForwordPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'a' forword
-			else if (board.getPieceAt(negitiveDiagonalEnds.a)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy in 2nd quadrent: " + negitiveDiagonalEnds.a.str());
-				moves.push_back(Move(piece->pos, negitiveDiagonalEnds.a, MoveType::LINE_AND_ATTACK, board.getPieceAt(negitiveDiagonalEnds.a)));
-			}
-
-			// Never meets any piece in 4th quadrent
-			if (negitiveDiagonalEnds.b == piece->pos || (board.isPieceOnAnyBoarder(negitiveDiagonalEnds.b) && !board.getPieceAt(negitiveDiagonalEnds.b)))
-			{
-				if (debug) Log("  No enemy in 4th quadrent");
-				if (!bordered.a.y && !bordered.b.x)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, negitiveDiagonalEnds.b, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'b' backword
-			else if (board.getPieceAt(negitiveDiagonalEnds.b)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedBackwordPos = { negitiveDiagonalEnds.b.x - 1, negitiveDiagonalEnds.b.y - 1 };
-				if (debug) Log("  Ally in 4th quadrent: " + negitiveDiagonalEnds.b.str());
-				if (adjustedBackwordPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedBackwordPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'b' backword
-			else if (board.getPieceAt(negitiveDiagonalEnds.b)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy in 4th quadrent: " + negitiveDiagonalEnds.b.str());
-				moves.push_back(Move(piece->pos, negitiveDiagonalEnds.b, MoveType::LINE_AND_ATTACK, board.getPieceAt(negitiveDiagonalEnds.b)));
-			}
+			if (auto move = checkDiagonalMove(piece, negitiveDiagonalEnds.a, !bordered.a.x && !bordered.b.y, board, debug, 3)) moves.push_back(*move);
+			if (auto move = checkDiagonalMove(piece, negitiveDiagonalEnds.b, !bordered.a.y && !bordered.b.x, board, debug, 4)) moves.push_back(*move);
 
 			if (debug)
 				Log(
@@ -601,6 +583,7 @@ public:
 			return moves;
 		}
 
+		// En pasont, rank up
 		std::vector<Move> pawnLogic(Piece* piece, GameBoard& board) 
 		{
 			std::vector<Move> moves;
@@ -645,9 +628,12 @@ public:
 			for (Move m : moves)
 				Log("  " + moveToString(m.eType));
 */
+			if (debug) Log("");
+
 			return moves;
 		}
 
+		// DONE
 		std::vector<Move> bishopLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
@@ -660,6 +646,8 @@ public:
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
+
+			if (debug) Log("");
 
 			return moves;
 		}
@@ -674,6 +662,7 @@ public:
 			return moves;
 		}
 
+		// DONE
 		std::vector<Move> rookLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
@@ -686,6 +675,8 @@ public:
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
+
+			if (debug) Log("");
 
 			return moves;
 		}
@@ -700,6 +691,7 @@ public:
 			return moves;
 		}
 
+		// DONE
 		std::vector<Move> queenLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
@@ -715,6 +707,8 @@ public:
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
+
+			if (debug) Log("");
 
 			return moves;
 		}
@@ -902,7 +896,7 @@ public:
 
 		void deletePieceAt(olc::vi2d pos) { if(boundedInMap(pos)) board[vtoi(pos)] = nullptr; }
 		void movePiece(olc::vi2d from, olc::vi2d to) { if (getPieceAt(from) && !getPieceAt(to)) { board[vtoi(to)] = getPieceAt(from); deletePieceAt(from); } }
-		void updateAllLogic() { for (Piece* p : board) if (p) p->updLogic(this); if (Debug::DebugPieceLogic != 0) Log(""); }
+		void updateAllLogic() { for (Piece* p : board) if (p) { p->updLogic(this); } if (Debug::DebugPieceLogic != 0) Log(""); }
 
 		// TODO: make wall colision result NOT -1,-1
 		// a = Right, b = Left
@@ -1146,7 +1140,7 @@ public:
 		chessPieceSheet.loadAsset(this);
 		chessBoardPNG.loadAsset(this);
 
-		Debug::DebugPieceLogic |= Debug::Queen;
+		Debug::DebugPieceLogic |= Debug::Bishop;
 
 		board.updateAllLogic();
 
