@@ -350,15 +350,10 @@ public:
 				return 4;
 		}
 
-		Move* checkLinelMove(Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug)
+		Move* checkLineMove(Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
 		{
-			olc::vi2d diff = end - piece->pos,
-				slope = diff / diff.abs();
-
-			int quadrent = getQuadrent(slope);
-
 			// Never meets any piece in given quadrent
-			if (end == piece->pos || (board.isPieceOnAnyBoarder(end) && !board.getPieceAt(end)))
+			if (end == piece->pos || (board.isOnAnyBoarder(end) && !board.getPieceAt(end)))
 			{
 				if (debug) Log("  No enemy in quadrent " + std::to_string(quadrent));
 				if (isBordering)
@@ -370,9 +365,15 @@ public:
 			// Meets ally at position end in given quadrent
 			else if (board.getPieceAt(end)->eColor != piece->eEnemyColor)
 			{
-				olc::vi2d adjustedPos = end - slope;
+				// Offset end position by one to avoid overlap
+				olc::vi2d diff = end - piece->pos,
+					adjustedPos = end - olc::vi2d {
+						diff.x ? (diff.x / std::abs(diff.x)) : 0,
+						diff.y ? (diff.y / std::abs(diff.y)) : 0
+					};
 
 				if (debug) Log("  Ally in quadrent " + std::to_string(quadrent) + ": " + end.str());
+
 				if (adjustedPos != piece->pos)
 				{
 					if (debug) Log("    NOT COLOCATED");
@@ -397,121 +398,14 @@ public:
 			// ==== HORIZONTAL ==== //
 			Game::vi2dPair horizontalEnds = board.findOnHorizontal(piece->pos);
 
-			// Never meets any piece on right
-			if (horizontalEnds.a == olc::vi2d{ -1, -1 })
-			{
-				if (debug) Log("  No enemy on right");
-				if (!bordered.a.y)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, { 7, piece->pos.y }, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'a' to the right
-			else if (board.getPieceAt(horizontalEnds.a)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedRightPos = { horizontalEnds.a.x - 1, horizontalEnds.a.y };
-				if (debug) Log("  Ally at right: " + horizontalEnds.a.str());
-				if (adjustedRightPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedRightPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'a' to the right
-			else if (board.getPieceAt(horizontalEnds.a)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy at position: " + horizontalEnds.a.str());
-				moves.push_back(Move(piece->pos, horizontalEnds.a, MoveType::LINE_AND_ATTACK, board.getPieceAt(horizontalEnds.a)));
-			}
-
-			// Never meets any piece on left
-			if (horizontalEnds.b == olc::vi2d{ -1, -1 })
-			{
-				if (debug) Log("  No enemy on left");
-				if (!bordered.a.x)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, { 0, piece->pos.y }, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'b' to the left
-			else if (board.getPieceAt(horizontalEnds.b)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedLeftPos = { horizontalEnds.b.x + 1, horizontalEnds.b.y };
-				if (debug) Log("  Ally at left: " + horizontalEnds.b.str());
-				if (adjustedLeftPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedLeftPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'b' to the left
-			else if (board.getPieceAt(horizontalEnds.b)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy at position: " + horizontalEnds.b.str());
-				moves.push_back(Move(piece->pos, horizontalEnds.b, MoveType::LINE_AND_ATTACK, board.getPieceAt(horizontalEnds.b)));
-			}
-
+			if (auto move = checkLineMove(piece, horizontalEnds.a, !bordered.a.y, board, debug, 1)) moves.push_back(*move);
+			if (auto move = checkLineMove(piece, horizontalEnds.b, !bordered.a.x, board, debug, 2)) moves.push_back(*move);
+			
 			// ==== VERTICAL ==== //
 			Game::vi2dPair verticalEnds = board.findOnVertical(piece->pos);
 
-			// Never meets any piece forword
-			if (verticalEnds.a == olc::vi2d{ -1, -1 })
-			{
-				if (debug) Log("  No enemy up");
-				if (!bordered.b.y)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, { piece->pos.x, 0 }, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'a' forword
-			else if (board.getPieceAt(verticalEnds.a)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedForwordPos = { verticalEnds.a.x, verticalEnds.a.y + 1 };
-				if (debug) Log("  Ally at up: " + verticalEnds.a.str());
-				if (adjustedForwordPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedForwordPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'a' forword
-			else if (board.getPieceAt(verticalEnds.a)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy at position: " + verticalEnds.a.str());
-				moves.push_back(Move(piece->pos, verticalEnds.a, MoveType::LINE_AND_ATTACK, board.getPieceAt(verticalEnds.a)));
-			}
-
-			// Never meets any piece backword
-			if (verticalEnds.b == olc::vi2d{ -1, -1 })
-			{
-				if (debug) Log("  No enemy down");
-				if (!bordered.b.x)
-				{
-					if (debug) Log("    NOT BORDERING");
-					moves.push_back(Move(piece->pos, { piece->pos.x, 7 }, MoveType::LINE));
-				}
-			}
-			// Meets ally at position 'b' backword
-			else if (board.getPieceAt(verticalEnds.b)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d adjustedBackwordPos = { verticalEnds.b.x, verticalEnds.b.y - 1 };
-				if (debug) Log("  Ally at down: " + verticalEnds.b.str());
-				if (adjustedBackwordPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					moves.push_back(Move(piece->pos, adjustedBackwordPos, MoveType::LINE));
-				}
-			}
-			// Meets enemy at position 'b' backword
-			else if (board.getPieceAt(verticalEnds.b)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy at position: " + verticalEnds.b.str());
-				moves.push_back(Move(piece->pos, verticalEnds.b, MoveType::LINE_AND_ATTACK, board.getPieceAt(verticalEnds.b)));
-			}
-
+			if (auto move = checkLineMove(piece, verticalEnds.a, !bordered.b.y, board, debug, 3)) moves.push_back(*move);
+			if (auto move = checkLineMove(piece, verticalEnds.b, !bordered.b.x, board, debug, 4)) moves.push_back(*move);
 
 			if (debug) Log("  Horizontal: " + horizontalEnds.a.str() + ", " + horizontalEnds.b.str() + " Vertical: " + verticalEnds.a.str() + ", " + verticalEnds.b.str() +
 				" Moves: " + std::to_string(moves.size()));
@@ -522,7 +416,7 @@ public:
 		Move* checkDiagonalMove(Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
 		{
 			// Never meets any piece in given quadrent
-			if (end == piece->pos || (board.isPieceOnAnyBoarder(end) && !board.getPieceAt(end)))
+			if (end == piece->pos || (board.isOnAnyBoarder(end) && !board.getPieceAt(end)))
 			{
 				if (debug) Log("  No enemy in quadrent " + std::to_string(quadrent));
 				if (isBordering)
@@ -886,7 +780,7 @@ public:
 		bool boundedInMap(olc::vi2d pos) { return pos.x >= 0 && pos.y >= 0 && pos.x < 8 && pos.y < 8; }
 		Piece* getPieceAt(olc::vi2d pos) { return boundedInMap(pos) ? board[vtoi(pos)] : nullptr; }
 
-		bool isPieceOnAnyBoarder(olc::vi2d pos) { return pos.x == 0 || pos.x == 7 || pos.y == 0 || pos.y == 7; }
+		bool isOnAnyBoarder(olc::vi2d pos) { return pos.x == 0 || pos.x == 7 || pos.y == 0 || pos.y == 7; }
 		// a = { left, right }, b = { bottom, top }
 		Game::vb2dPair isPieceOnBoarder(olc::vi2d pos) { return { {pos.x == 0, pos.x == 7}, {pos.y == 7, pos.y == 0} }; }
 		bool isPieceAtBounded(olc::vi2d pos) { return boundedInMap(pos) && board[vtoi(pos)]; }
@@ -898,7 +792,6 @@ public:
 		void movePiece(olc::vi2d from, olc::vi2d to) { if (getPieceAt(from) && !getPieceAt(to)) { board[vtoi(to)] = getPieceAt(from); deletePieceAt(from); } }
 		void updateAllLogic() { for (Piece* p : board) if (p) { p->updLogic(this); } if (Debug::DebugPieceLogic != 0) Log(""); }
 
-		// TODO: make wall colision result NOT -1,-1
 		// a = Right, b = Left
 		Game::vi2dPair findOnHorizontal(olc::vi2d start)
 		{
@@ -911,7 +804,10 @@ public:
 			{
 				// Never runs into a piece, vector stays as -1, -1
 				if (!endR && !boundedInMap({ start.x + i, start.y }))
+				{
+					out.a = { start.x + (i - 1), start.y };
 					endR = true;
+				}
 				// Runs into a piece, vector becomes that position
 				else if (!endR && isPieceAt({ start.x + i, start.y }))
 				{
@@ -921,7 +817,10 @@ public:
 
 				// Never runs into a piece, vector stays as -1, -1
 				if (!endL && !boundedInMap({ start.x - i, start.y }))
+				{
+					out.b = { start.x - (i - 1), start.y };
 					endL = true;
+				}
 				// Runs into a piece, vector becomes that position
 				else if (!endL && isPieceAt({ start.x - i, start.y }))
 				{
@@ -933,7 +832,6 @@ public:
 			return out;
 		}
 
-		// TODO: make wall colision result NOT -1,-1
 		// a = Up, b = Down
 		Game::vi2dPair findOnVertical(olc::vi2d start)
 		{
@@ -946,7 +844,10 @@ public:
 			{
 				// Never runs into a piece, vector stays as -1, -1
 				if (!endU && !boundedInMap({ start.x, start.y - i }))
+				{
+					out.a = { start.x, start.y - (i - 1) };
 					endU = true;
+				}
 				// Runs into a piece, vector becomes that position
 				else if (!endU && isPieceAt({ start.x, start.y - i }))
 				{
@@ -956,7 +857,10 @@ public:
 
 				// Never runs into a piece, vector stays as -1, -1
 				if (!endD && !boundedInMap({ start.x, start.y + i }))
+				{
+					out.b = { start.x, start.y + (i - 1) };
 					endD = true;
+				}
 				// Runs into a piece, vector becomes that position
 				else if (!endD && isPieceAt({ start.x, start.y + i }))
 				{
@@ -1140,7 +1044,7 @@ public:
 		chessPieceSheet.loadAsset(this);
 		chessBoardPNG.loadAsset(this);
 
-		Debug::DebugPieceLogic |= Debug::Bishop;
+		Debug::DebugPieceLogic |= Debug::Rook;
 
 		board.updateAllLogic();
 
