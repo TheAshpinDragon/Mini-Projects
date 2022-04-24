@@ -336,21 +336,10 @@ public:
 		bool firstMove;
 		PieceType eType;
 
-	private:
+	private: 
 
-		int getQuadrent(olc::vi2d slope)
-		{
-			if (slope == olc::vi2d{ 1, 1 })
-				return 1;
-			else if (slope == olc::vi2d{ -1, 1 })
-				return 2;
-			else if (slope == olc::vi2d{ -1, -1 })
-				return 3;
-			else if (slope == olc::vi2d{ 1, -1 })
-				return 4;
-		}
-
-		Move* checkLineMove(Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
+		// Gets the apropriate move for a single liniar section
+		Move* getMoveFromLiniarSegment(Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
 		{
 			// Never meets any piece in given quadrent
 			if (end == piece->pos || (board.isOnAnyBoarder(end) && !board.getPieceAt(end)))
@@ -390,6 +379,7 @@ public:
 			return nullptr;
 		}
 
+		// Run logic for a generic cross move type
 		std::vector<Move> lineLogic(Piece* piece, GameBoard& board, bool debug)
 		{
 			std::vector<Move> moves;
@@ -398,14 +388,14 @@ public:
 			// ==== HORIZONTAL ==== //
 			Game::vi2dPair horizontalEnds = board.findOnHorizontal(piece->pos);
 
-			if (auto move = checkLineMove(piece, horizontalEnds.a, !bordered.a.y, board, debug, 1)) moves.push_back(*move);
-			if (auto move = checkLineMove(piece, horizontalEnds.b, !bordered.a.x, board, debug, 2)) moves.push_back(*move);
+			if (auto move = getMoveFromLiniarSegment(piece, horizontalEnds.a, !bordered.a.y, board, debug, 1)) moves.push_back(*move);
+			if (auto move = getMoveFromLiniarSegment(piece, horizontalEnds.b, !bordered.a.x, board, debug, 2)) moves.push_back(*move);
 			
 			// ==== VERTICAL ==== //
 			Game::vi2dPair verticalEnds = board.findOnVertical(piece->pos);
 
-			if (auto move = checkLineMove(piece, verticalEnds.a, !bordered.b.y, board, debug, 3)) moves.push_back(*move);
-			if (auto move = checkLineMove(piece, verticalEnds.b, !bordered.b.x, board, debug, 4)) moves.push_back(*move);
+			if (auto move = getMoveFromLiniarSegment(piece, verticalEnds.a, !bordered.b.y, board, debug, 3)) moves.push_back(*move);
+			if (auto move = getMoveFromLiniarSegment(piece, verticalEnds.b, !bordered.b.x, board, debug, 4)) moves.push_back(*move);
 
 			if (debug) Log("  Horizontal: " + horizontalEnds.a.str() + ", " + horizontalEnds.b.str() + " Vertical: " + verticalEnds.a.str() + ", " + verticalEnds.b.str() +
 				" Moves: " + std::to_string(moves.size()));
@@ -413,43 +403,7 @@ public:
 			return moves;
 		}
 
-		Move* checkDiagonalMove(Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
-		{
-			// Never meets any piece in given quadrent
-			if (end == piece->pos || (board.isOnAnyBoarder(end) && !board.getPieceAt(end)))
-			{
-				if (debug) Log("  No enemy in quadrent " + std::to_string(quadrent));
-				if (isBordering)
-				{
-					if (debug) Log("    NOT BORDERING");
-					return new Move(piece->pos, end, MoveType::LINE);
-				}
-			}
-			// Meets ally at position end in given quadrent
-			else if (board.getPieceAt(end)->eColor != piece->eEnemyColor)
-			{
-				olc::vi2d diff = end - piece->pos,
-				slope = diff / diff.abs();
-
-				olc::vi2d adjustedPos = end - slope;
-
-				if (debug) Log("  Ally in quadrent " + std::to_string(quadrent) + ": " + end.str());
-				if (adjustedPos != piece->pos)
-				{
-					if (debug) Log("    NOT COLOCATED");
-					return new Move(piece->pos, adjustedPos, MoveType::LINE);
-				}
-			}
-			// Meets enemy at position end in given quadrent
-			else if (board.getPieceAt(end)->eColor == piece->eEnemyColor)
-			{
-				if (debug) Log("  Enemy in quadrent " + std::to_string(quadrent) + ": " + end.str());
-				return new Move(piece->pos, end, MoveType::LINE_AND_ATTACK, board.getPieceAt(end));
-			}
-
-			return nullptr;
-		}
-
+		// Run logic for a generic X move type
 		std::vector<Move> diagonalLogic(Piece* piece, GameBoard& board, bool debug)
 		{
 			std::vector<Move> moves;
@@ -458,14 +412,14 @@ public:
 			// ==== HORIZONTAL ==== //
 			Game::vi2dPair positiveDiagonalEnds = board.findOnPositiveDiagonal(piece->pos);
 
-			if (auto move = checkDiagonalMove(piece, positiveDiagonalEnds.a, !bordered.a.y && !bordered.b.y, board, debug, 1)) moves.push_back(*move);
-			if (auto move = checkDiagonalMove(piece, positiveDiagonalEnds.b, !bordered.a.x && !bordered.b.x, board, debug, 2)) moves.push_back(*move);
+			if (auto move = getMoveFromLiniarSegment(piece, positiveDiagonalEnds.a, !bordered.a.y && !bordered.b.y, board, debug, 1)) moves.push_back(*move);
+			if (auto move = getMoveFromLiniarSegment(piece, positiveDiagonalEnds.b, !bordered.a.x && !bordered.b.x, board, debug, 2)) moves.push_back(*move);
 
 			// ==== VERTICAL ==== //
 			Game::vi2dPair negitiveDiagonalEnds = board.findOnNegitiveDiagonal(piece->pos);
 
-			if (auto move = checkDiagonalMove(piece, negitiveDiagonalEnds.a, !bordered.a.x && !bordered.b.y, board, debug, 3)) moves.push_back(*move);
-			if (auto move = checkDiagonalMove(piece, negitiveDiagonalEnds.b, !bordered.a.y && !bordered.b.x, board, debug, 4)) moves.push_back(*move);
+			if (auto move = getMoveFromLiniarSegment(piece, negitiveDiagonalEnds.a, !bordered.a.x && !bordered.b.y, board, debug, 3)) moves.push_back(*move);
+			if (auto move = getMoveFromLiniarSegment(piece, negitiveDiagonalEnds.b, !bordered.a.y && !bordered.b.x, board, debug, 4)) moves.push_back(*move);
 
 			if (debug)
 				Log(
@@ -477,6 +431,9 @@ public:
 			return moves;
 		}
 
+		Move* checkFixedMove() {}
+
+	private:
 		// En pasont, rank up
 		std::vector<Move> pawnLogic(Piece* piece, GameBoard& board) 
 		{
@@ -527,7 +484,6 @@ public:
 			return moves;
 		}
 
-		// DONE
 		std::vector<Move> bishopLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
@@ -556,7 +512,6 @@ public:
 			return moves;
 		}
 
-		// DONE
 		std::vector<Move> rookLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
@@ -585,7 +540,6 @@ public:
 			return moves;
 		}
 
-		// DONE
 		std::vector<Move> queenLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
