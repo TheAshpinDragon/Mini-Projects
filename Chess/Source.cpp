@@ -339,16 +339,16 @@ public:
 	private: 
 
 		// Gets the apropriate move for a single liniar section
-		Move* getMoveFromLiniarSegment(Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
+		void getMoveFromSegment(std::vector<Move>& moves, Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
 		{
 			// Never meets any piece in given quadrent
 			if (end == piece->pos || (board.isOnAnyBoarder(end) && !board.getPieceAt(end)))
 			{
-				if (debug) Log("  No enemy in quadrent " + std::to_string(quadrent));
+				if (debug) Log("  No encounter in quadrent: " + std::to_string(quadrent));
 				if (isBordering)
 				{
 					if (debug) Log("    NOT BORDERING");
-					return new Move(piece->pos, end, MoveType::LINE);
+					moves.push_back(Move(piece->pos, end, MoveType::LINE));
 				}
 			}
 			// Meets ally at position end in given quadrent
@@ -366,60 +366,42 @@ public:
 				if (adjustedPos != piece->pos)
 				{
 					if (debug) Log("    NOT COLOCATED");
-					return new Move(piece->pos, adjustedPos, MoveType::LINE);
+					moves.push_back(Move(piece->pos, adjustedPos, MoveType::LINE));
 				}
 			}
 			// Meets enemy at position end in given quadrent
 			else if (board.getPieceAt(end)->eColor == piece->eEnemyColor)
 			{
 				if (debug) Log("  Enemy in quadrent " + std::to_string(quadrent) + ": " + end.str());
-				return new Move(piece->pos, end, MoveType::LINE_AND_ATTACK, board.getPieceAt(end));
+				moves.push_back(Move(piece->pos, end, MoveType::LINE_AND_ATTACK, board.getPieceAt(end)));
 			}
-
-			return nullptr;
 		}
 
 		// Run logic for a generic cross move type
-		std::vector<Move> lineLogic(Piece* piece, GameBoard& board, bool debug)
+		void lineLogic(std::vector<Move>& moves, Piece* piece, Game::vb2dPair bordered, GameBoard& board, bool debug)
 		{
-			std::vector<Move> moves;
-			Game::vb2dPair bordered = board.isPieceOnBoarder(piece->pos);
+			Game::vi2dPair horizontalEnds = board.findOnHorizontal(piece->pos),
+						   verticalEnds = board.findOnVertical(piece->pos);
 
-			// ==== HORIZONTAL ==== //
-			Game::vi2dPair horizontalEnds = board.findOnHorizontal(piece->pos);
-
-			if (auto move = getMoveFromLiniarSegment(piece, horizontalEnds.a, !bordered.a.y, board, debug, 1)) moves.push_back(*move);
-			if (auto move = getMoveFromLiniarSegment(piece, horizontalEnds.b, !bordered.a.x, board, debug, 2)) moves.push_back(*move);
-			
-			// ==== VERTICAL ==== //
-			Game::vi2dPair verticalEnds = board.findOnVertical(piece->pos);
-
-			if (auto move = getMoveFromLiniarSegment(piece, verticalEnds.a, !bordered.b.y, board, debug, 3)) moves.push_back(*move);
-			if (auto move = getMoveFromLiniarSegment(piece, verticalEnds.b, !bordered.b.x, board, debug, 4)) moves.push_back(*move);
+			getMoveFromSegment(moves, piece, horizontalEnds.a, !bordered.a.y, board, debug, 1);
+			getMoveFromSegment(moves, piece, horizontalEnds.b, !bordered.a.x, board, debug, 2);
+			getMoveFromSegment(moves, piece, verticalEnds.a, !bordered.b.y, board, debug, 3);
+			getMoveFromSegment(moves, piece, verticalEnds.b, !bordered.b.x, board, debug, 4);
 
 			if (debug) Log("  Horizontal: " + horizontalEnds.a.str() + ", " + horizontalEnds.b.str() + " Vertical: " + verticalEnds.a.str() + ", " + verticalEnds.b.str() +
 				" Moves: " + std::to_string(moves.size()));
-
-			return moves;
 		}
 
 		// Run logic for a generic X move type
-		std::vector<Move> diagonalLogic(Piece* piece, GameBoard& board, bool debug)
+		void diagonalLogic(std::vector<Move>& moves, Piece* piece, Game::vb2dPair bordered, GameBoard& board, bool debug)
 		{
-			std::vector<Move> moves;
-			Game::vb2dPair bordered = board.isPieceOnBoarder(piece->pos);
+			Game::vi2dPair positiveDiagonalEnds = board.findOnPositiveDiagonal(piece->pos),
+						   negitiveDiagonalEnds = board.findOnNegitiveDiagonal(piece->pos);
 
-			// ==== HORIZONTAL ==== //
-			Game::vi2dPair positiveDiagonalEnds = board.findOnPositiveDiagonal(piece->pos);
-
-			if (auto move = getMoveFromLiniarSegment(piece, positiveDiagonalEnds.a, !bordered.a.y && !bordered.b.y, board, debug, 1)) moves.push_back(*move);
-			if (auto move = getMoveFromLiniarSegment(piece, positiveDiagonalEnds.b, !bordered.a.x && !bordered.b.x, board, debug, 2)) moves.push_back(*move);
-
-			// ==== VERTICAL ==== //
-			Game::vi2dPair negitiveDiagonalEnds = board.findOnNegitiveDiagonal(piece->pos);
-
-			if (auto move = getMoveFromLiniarSegment(piece, negitiveDiagonalEnds.a, !bordered.a.x && !bordered.b.y, board, debug, 3)) moves.push_back(*move);
-			if (auto move = getMoveFromLiniarSegment(piece, negitiveDiagonalEnds.b, !bordered.a.y && !bordered.b.x, board, debug, 4)) moves.push_back(*move);
+			getMoveFromSegment(moves, piece, positiveDiagonalEnds.a, !bordered.a.y && !bordered.b.y, board, debug, 1);
+			getMoveFromSegment(moves, piece, positiveDiagonalEnds.b, !bordered.a.x && !bordered.b.x, board, debug, 2);
+			getMoveFromSegment(moves, piece, negitiveDiagonalEnds.a, !bordered.a.x && !bordered.b.y, board, debug, 3);
+			getMoveFromSegment(moves, piece, negitiveDiagonalEnds.b, !bordered.a.y && !bordered.b.x, board, debug, 4);
 
 			if (debug)
 				Log(
@@ -427,8 +409,6 @@ public:
 					" Negitive diagonal: " + negitiveDiagonalEnds.a.str() + ", " + negitiveDiagonalEnds.b.str() +
 					" Boardering: (l,r) " + bordered.a.str() + ", (b,t)" + bordered.b.str() +
 					" Moves: " + std::to_string(moves.size()));
-
-			return moves;
 		}
 
 		Move* checkFixedMove() {}
@@ -492,7 +472,7 @@ public:
 
 			if (debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
 
-			moves = diagonalLogic(piece, board, debug);
+			diagonalLogic(moves, piece, bordered, board, debug);
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
@@ -520,7 +500,7 @@ public:
 
 			if(debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
 
-			moves = lineLogic(piece, board, debug);
+			lineLogic(moves, piece, bordered, board, debug);
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
@@ -548,10 +528,8 @@ public:
 
 			if (debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
 
-			moves = lineLogic(piece, board, debug);
-
-			std::vector<Move> diagonalMoves = diagonalLogic(piece, board, debug);
-			moves.insert(moves.end(), diagonalMoves.begin(), diagonalMoves.end());
+			lineLogic(moves, piece, bordered, board, debug);
+			diagonalLogic(moves, piece, bordered, board, debug);
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
