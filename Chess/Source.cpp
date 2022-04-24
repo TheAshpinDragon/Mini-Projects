@@ -2,19 +2,19 @@
 #include "olcPixelGameEngine.h"
 
 
-#define WPWN new Piece(PAWN, WHITE, PieceLogic(PAWN))
-#define WROK new Piece(ROOK, WHITE, PieceLogic(ROOK))
-#define WKNT new Piece(KNIGHT, WHITE)
-#define WBSP new Piece(BISHOP, WHITE, PieceLogic(BISHOP))
-#define WQUN new Piece(QUEEN, WHITE)
-#define WKNG new Piece(KING, WHITE)
+#define WPWN new Piece(PieceType::PAWN, PieceColor::WHITE, PieceLogic(PieceType::PAWN))
+#define WROK new Piece(PieceType::ROOK, PieceColor::WHITE, PieceLogic(PieceType::ROOK))
+#define WKNT new Piece(PieceType::KNIGHT, PieceColor::WHITE)
+#define WBSP new Piece(PieceType::BISHOP, PieceColor::WHITE, PieceLogic(PieceType::BISHOP))
+#define WQUN new Piece(PieceType::QUEEN, PieceColor::WHITE)
+#define WKNG new Piece(PieceType::KING, PieceColor::WHITE)
 
-#define BPWN new Piece(PAWN, BLACK, PieceLogic(PAWN))
-#define BROK new Piece(ROOK, BLACK, PieceLogic(ROOK))
-#define BKNT new Piece(KNIGHT, BLACK)
-#define BBSP new Piece(BISHOP, BLACK, PieceLogic(BISHOP))
-#define BQUN new Piece(QUEEN, BLACK)
-#define BKNG new Piece(KING, BLACK)
+#define BPWN new Piece(PieceType::PAWN, PieceColor::BLACK, PieceLogic(PieceType::PAWN))
+#define BROK new Piece(PieceType::ROOK, PieceColor::BLACK, PieceLogic(PieceType::ROOK))
+#define BKNT new Piece(PieceType::KNIGHT, PieceColor::BLACK)
+#define BBSP new Piece(PieceType::BISHOP, PieceColor::BLACK, PieceLogic(PieceType::BISHOP))
+#define BQUN new Piece(PieceType::QUEEN, PieceColor::BLACK)
+#define BKNG new Piece(PieceType::KING, PieceColor::BLACK)
 
 #define NONE nullptr
 
@@ -136,7 +136,7 @@ public:
 	{ return (check.x >= min(lower.x, upper.x) && check.y >= min(lower.y, upper.y)) &&
 			 (check.x <= max(lower.x, upper.x) && check.y <= max(lower.y, upper.y)); }
 
-	enum MoveType {
+	enum class MoveType {
 		FIXED,
 		FIXED_AND_ATTACK,
 		LINE,
@@ -312,7 +312,7 @@ public:
 		}
 	};
 
-	enum PieceType {
+	enum class PieceType {
 		PAWN	= 5,
 		BISHOP	= 4,
 		KNIGHT	= 3,
@@ -321,14 +321,14 @@ public:
 		QUEEN	= 0
 	};
 
-	enum PieceColor {
+	enum class PieceColor {
 		WHITE = 0,
 		BLACK = 1
 	};
 
 	static PieceColor getOpositeColor(PieceColor in) {
-		static std::vector<PieceColor> colors{ BLACK, WHITE };
-		return colors[in];
+		static std::vector<PieceColor> colors{ PieceColor::BLACK, PieceColor::WHITE };
+		return colors[(int)in];
 	}
 
 	struct PieceLogic {
@@ -470,7 +470,7 @@ public:
 			Game::vb2dPair bordered = board.isPieceOnBoarder(piece->pos);
 			bool debug = Debug::DebugPieceLogic & Debug::Bishop;
 
-			if (debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
+			if (debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
 
 			diagonalLogic(moves, piece, bordered, board, debug);
 
@@ -498,7 +498,7 @@ public:
 			Game::vb2dPair bordered = board.isPieceOnBoarder(piece->pos);
 			bool debug = (Debug::DebugPieceLogic & Debug::Rook) != 0;
 
-			if(debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
+			if(debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
 
 			lineLogic(moves, piece, bordered, board, debug);
 
@@ -526,7 +526,7 @@ public:
 			Game::vb2dPair bordered = board.isPieceOnBoarder(piece->pos);
 			bool debug = Debug::DebugPieceLogic & Debug::Queen;
 
-			if (debug) Log("Color: " + std::to_string(piece->eColor) + " Pos: " + piece->pos.str());
+			if (debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
 
 			lineLogic(moves, piece, bordered, board, debug);
 			diagonalLogic(moves, piece, bordered, board, debug);
@@ -546,22 +546,22 @@ public:
 		{
 			switch (eType)
 			{
-			case PAWN:
+			case PieceType::PAWN:
 				return pawnLogic(piece, board);
 				break;
-			case BISHOP:
+			case PieceType::BISHOP:
 				return bishopLogic(piece, board);
 				break;
-			case KNIGHT:
+			case PieceType::KNIGHT:
 				return knightLogic(piece, board);
 				break;
-			case ROOK:
+			case PieceType::ROOK:
 				return rookLogic(piece, board);
 				break;
-			case KING:
+			case PieceType::KING:
 				return kingLogic(piece, board);
 				break;
-			case QUEEN:
+			case PieceType::QUEEN:
 				return queenLogic(piece, board);
 				break;
 			default:
@@ -598,7 +598,7 @@ public:
 		}
 
 		void drawSelf(Chess* pge) {
-			pge->DrawDecal(pos * 64, pge->chessPieceSheet.decals[eType][eColor]);
+			pge->DrawDecal(pos * 64, pge->chessPieceSheet.decals[(int)eType][(int)eColor]);
 
 			if (displayMoves)
 			{
@@ -940,7 +940,7 @@ public:
 					if (getPieceAt(selectedPiece)->tryMoveTo(this, pos))
 					{
 						turn++;
-						eColor = eColor == WHITE ? BLACK : WHITE;
+						eColor = eColor == PieceColor::WHITE ? PieceColor::BLACK : PieceColor::WHITE;
 						return;
 					}
 
@@ -979,37 +979,6 @@ public:
 		Debug::DebugPieceLogic |= Debug::Rook;
 
 		board.updateAllLogic();
-
-		return true;
-
-		// Tests
-		Log(std::to_string(board.isHorizontal({ 0, 2 }, { 32, 2 }) == true));
-		Log(std::to_string(board.isHorizontal({ 3, 2 }, { -32, 2 }) == true));
-		Log(std::to_string(board.isHorizontal({ 3, 12 }, { 32, 2 }) == false));
-		Log(std::to_string(board.isHorizontal({ 3, -12 }, { 32, 2 }) == false));
-
-		Log(std::to_string(board.isVertical({ 32, 5 }, { 32, 2 }) == true));
-		Log(std::to_string(board.isVertical({ 32, 5 }, { 32, -2 }) == true));
-		Log(std::to_string(board.isVertical({ 3, 5 }, { 32, 2 }) == false));
-		Log(std::to_string(board.isVertical({ 3, 5 }, { -32, 2 }) == false));
-
-		Log(std::to_string(board.isPositiveDiagonal({ 0, 0 }, { 5, 5 }) == true));
-		Log(std::to_string(board.isPositiveDiagonal({ 22, 33 }, { 33, 44 }) == true));
-		Log(std::to_string(board.isPositiveDiagonal({ 0, 0 }, { -5, -5 }) == true));
-		Log(std::to_string(board.isPositiveDiagonal({ -22, -33 }, { -33, -44 }) == true));
-		Log(std::to_string(board.isPositiveDiagonal({ 21, 32 }, { 64, 23 }) == false));
-		Log(std::to_string(board.isPositiveDiagonal({ 21, -32 }, { -64, 23 }) == false));
-		Log(std::to_string(board.isPositiveDiagonal({ 21, 32 }, { -64, -23 }) == false));
-		Log(std::to_string(board.isPositiveDiagonal({ -22, 33 }, { -33, 44 }) == false));
-		Log(std::to_string(board.isPositiveDiagonal({ 22, -33 }, { 33, -44 }) == false));
-
-		Log(std::to_string(board.isNegitiveDiagonal({ 22, -33 }, { 33, -44 }) == true));
-		Log(std::to_string(board.isNegitiveDiagonal({ -22, 33 }, { -33, 44 }) == true));
-		Log(std::to_string(board.isNegitiveDiagonal({ 12, -33 }, { 23, -43 }) == false));
-		Log(std::to_string(board.isNegitiveDiagonal({ 21, 32 }, { 64, 23 }) == false));
-		Log(std::to_string(board.isNegitiveDiagonal({ 22, 33 }, { 33, 44 }) == false));
-		Log(std::to_string(board.isNegitiveDiagonal({ 0, 0 }, { -5, -5 }) == false));
-		Log(std::to_string(board.isNegitiveDiagonal({ -22, -33 }, { -33, -44 }) == false));
 
 		return true;
 	}
