@@ -124,19 +124,8 @@ public:
 
 public:
 
-	static void Log(std::string msg)
-	{
-		std::cout << msg << std::endl;
-	}
-
-	static int vtoi(olc::vi2d pos) { return pos.x + 8 * pos.y; }
-
-	static bool bounded(int lower, int upper, int check) { return check >= lower && check <= upper; }
-	static bool bounded(olc::vi2d lower, olc::vi2d upper, olc::vi2d check)
-	{ return (check.x >= min(lower.x, upper.x) && check.y >= min(lower.y, upper.y)) &&
-			 (check.x <= max(lower.x, upper.x) && check.y <= max(lower.y, upper.y)); }
-
 	enum class MoveType {
+		NO_MOVE,
 		FIXED,
 		FIXED_AND_ATTACK,
 		LINE,
@@ -148,6 +137,32 @@ public:
 		// King & rook
 		CASTLE
 	};
+
+	enum class PieceType {
+		PAWN	= 5,
+		BISHOP	= 4,
+		KNIGHT	= 3,
+		ROOK	= 2,
+		KING	= 1,
+		QUEEN	= 0
+	};
+
+	enum class PieceColor {
+		WHITE = 0,
+		BLACK = 1
+	};
+
+	static void Log(std::string msg)
+	{
+		std::cout << msg << std::endl;
+	}
+
+	static int vtoi(olc::vi2d pos) { return pos.x + 8 * pos.y; }
+
+	static bool bounded(int lower, int upper, int check) { return check >= lower && check <= upper; }
+	static bool bounded(olc::vi2d lower, olc::vi2d upper, olc::vi2d check)
+	{ return (check.x >= min(lower.x, upper.x) && check.y >= min(lower.y, upper.y)) &&
+			 (check.x <= max(lower.x, upper.x) && check.y <= max(lower.y, upper.y)); }
 
 	static std::string moveToString(MoveType move)
 	{
@@ -181,6 +196,11 @@ public:
 			return "UNREACHABLE";
 			break;
 		}
+	}
+
+	static PieceColor getOpositeColor(PieceColor in) {
+		static std::vector<PieceColor> colors{ PieceColor::BLACK, PieceColor::WHITE };
+		return colors[(int)in];
 	}
 
 	struct Piece;
@@ -312,34 +332,26 @@ public:
 		}
 	};
 
-	enum class PieceType {
-		PAWN	= 5,
-		BISHOP	= 4,
-		KNIGHT	= 3,
-		ROOK	= 2,
-		KING	= 1,
-		QUEEN	= 0
-	};
-
-	enum class PieceColor {
-		WHITE = 0,
-		BLACK = 1
-	};
-
-	static PieceColor getOpositeColor(PieceColor in) {
-		static std::vector<PieceColor> colors{ PieceColor::BLACK, PieceColor::WHITE };
-		return colors[(int)in];
-	}
-
 	struct PieceLogic {
 	public:
-		bool firstMove;
-		PieceType eType;
+		bool firstMove = false, justDoubleMoved = false;
+		int moveCount = 0;
 
 	private: 
 
+		enum class FixedMoveFlags : int {
+			NO_FLAG			= 0,
+			ATTACK_ONLY		= 1,
+			MOVE_ONLY		= 2,
+			FIRST_MOVE_ONLY = 3,
+			EN_PASSANT		= 4,
+			DOUBLE_MOVE		= 5
+		};
+
+		olc::vi2d NO_FIXED_FLAGS = { (int)FixedMoveFlags::NO_FLAG, (int)FixedMoveFlags::NO_FLAG };
+
 		// Gets the apropriate move for a single liniar section
-		void getMoveFromSegment(std::vector<Move>& moves, Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
+		void appendSegmentMove(std::vector<Move>& moves, Piece* piece, olc::vi2d end, bool isBordering, GameBoard& board, bool debug, int quadrent)
 		{
 			// Never meets any piece in given quadrent
 			if (end == piece->pos || (board.isOnAnyBoarder(end) && !board.getPieceAt(end)))
@@ -378,30 +390,30 @@ public:
 		}
 
 		// Run logic for a generic cross move type
-		void lineLogic(std::vector<Move>& moves, Piece* piece, Game::vb2dPair bordered, GameBoard& board, bool debug)
+		void appendCrossMoves(std::vector<Move>& moves, Piece* piece, Game::vb2dPair bordered, GameBoard& board, bool debug)
 		{
 			Game::vi2dPair horizontalEnds = board.findOnHorizontal(piece->pos),
 						   verticalEnds = board.findOnVertical(piece->pos);
 
-			getMoveFromSegment(moves, piece, horizontalEnds.a, !bordered.a.y, board, debug, 1);
-			getMoveFromSegment(moves, piece, horizontalEnds.b, !bordered.a.x, board, debug, 2);
-			getMoveFromSegment(moves, piece, verticalEnds.a, !bordered.b.y, board, debug, 3);
-			getMoveFromSegment(moves, piece, verticalEnds.b, !bordered.b.x, board, debug, 4);
+			appendSegmentMove(moves, piece, horizontalEnds.a, !bordered.a.y, board, debug, 1);
+			appendSegmentMove(moves, piece, horizontalEnds.b, !bordered.a.x, board, debug, 2);
+			appendSegmentMove(moves, piece, verticalEnds.a, !bordered.b.y, board, debug, 3);
+			appendSegmentMove(moves, piece, verticalEnds.b, !bordered.b.x, board, debug, 4);
 
 			if (debug) Log("  Horizontal: " + horizontalEnds.a.str() + ", " + horizontalEnds.b.str() + " Vertical: " + verticalEnds.a.str() + ", " + verticalEnds.b.str() +
 				" Moves: " + std::to_string(moves.size()));
 		}
 
 		// Run logic for a generic X move type
-		void diagonalLogic(std::vector<Move>& moves, Piece* piece, Game::vb2dPair bordered, GameBoard& board, bool debug)
+		void appendDiagonalMoves(std::vector<Move>& moves, Piece* piece, Game::vb2dPair bordered, GameBoard& board, bool debug)
 		{
 			Game::vi2dPair positiveDiagonalEnds = board.findOnPositiveDiagonal(piece->pos),
 						   negitiveDiagonalEnds = board.findOnNegitiveDiagonal(piece->pos);
 
-			getMoveFromSegment(moves, piece, positiveDiagonalEnds.a, !bordered.a.y && !bordered.b.y, board, debug, 1);
-			getMoveFromSegment(moves, piece, positiveDiagonalEnds.b, !bordered.a.x && !bordered.b.x, board, debug, 2);
-			getMoveFromSegment(moves, piece, negitiveDiagonalEnds.a, !bordered.a.x && !bordered.b.y, board, debug, 3);
-			getMoveFromSegment(moves, piece, negitiveDiagonalEnds.b, !bordered.a.y && !bordered.b.x, board, debug, 4);
+			appendSegmentMove(moves, piece, positiveDiagonalEnds.a, !bordered.a.y && !bordered.b.y, board, debug, 1);
+			appendSegmentMove(moves, piece, positiveDiagonalEnds.b, !bordered.a.x && !bordered.b.x, board, debug, 2);
+			appendSegmentMove(moves, piece, negitiveDiagonalEnds.a, !bordered.a.x && !bordered.b.y, board, debug, 3);
+			appendSegmentMove(moves, piece, negitiveDiagonalEnds.b, !bordered.a.y && !bordered.b.x, board, debug, 4);
 
 			if (debug)
 				Log(
@@ -411,7 +423,79 @@ public:
 					" Moves: " + std::to_string(moves.size()));
 		}
 
-		Move* checkFixedMove() {}
+		void appendFixedMoves(std::vector<Move>& moves, Piece* piece, GameBoard& board, std::vector<Game::vi2dPair> tryPositions, bool debug)
+		{
+			if (debug) Log(" Append fixed moves:");
+
+			for (Game::vi2dPair pair : tryPositions)
+			{
+				// Get position
+				olc::vi2d tryPos = pair.a;
+
+				// Ensure position is bounded
+				if (!board.boundedInMap(tryPos))
+				{
+					if (debug) Log("  XXXX  Pos: " + tryPos.str() + " =OUT OF BOUNDS=");
+					continue;
+				}
+
+				// Get logic flags
+				bool attackOnly		= pair.b.x == (int) FixedMoveFlags::ATTACK_ONLY		|| pair.b.y == (int) FixedMoveFlags::ATTACK_ONLY,
+					 moveOnly		= pair.b.x == (int) FixedMoveFlags::MOVE_ONLY		|| pair.b.y == (int) FixedMoveFlags::MOVE_ONLY,
+					 firstMoveOnly	= pair.b.x == (int) FixedMoveFlags::FIRST_MOVE_ONLY	|| pair.b.y == (int) FixedMoveFlags::FIRST_MOVE_ONLY,
+					 enPassant		= pair.b.x == (int) FixedMoveFlags::EN_PASSANT		|| pair.b.y == (int) FixedMoveFlags::EN_PASSANT,
+					 doubleMove		= pair.b.x == (int) FixedMoveFlags::DOUBLE_MOVE		|| pair.b.y == (int) FixedMoveFlags::DOUBLE_MOVE;
+
+				// Ensure flags do not contradict
+				if (attackOnly && moveOnly)
+				{
+					if (debug) Log("  XXXX  Pos: " + tryPos.str() + " =ATTK & MOV: CONTRADITORY FLAGS=");
+					continue;
+				}
+
+				if ((firstMoveOnly || doubleMove) && !firstMove)
+				{
+					if (debug) Log("  XXXX  Pos: " + tryPos.str() + " =FST MOV: NOT FIRST MOVE=");
+					continue;
+				}
+
+				if (enPassant && moveCount < 3)
+				{
+					if (debug) Log("  XXXX  Pos: " + tryPos.str() + " =EN PASNT: LESS THAN 3 MOVES=");
+					continue;
+				}
+
+				// Fetch piece from position
+				Piece* pieceAtPos = board.getPieceAt(tryPos);
+				
+				if (debug) Log("  Pos: " + tryPos.str() +
+					" Flags: " + 
+					(attackOnly		? "ATTACK_ONLY " : "") + 
+					(moveOnly		? "MOVE_ONLY " : "") + 
+					(firstMoveOnly	? "FIRST_MOVE_ONLY " : "") +
+					(enPassant		? "EN_PASSANT " : "")
+				);
+
+				if (enPassant)
+				{
+					Piece* enemy = board.getPieceAt(tryPos - olc::vi2d{ 0, piece->direction });
+
+					if (!enemy || enemy->eColor == piece->eColor || enemy->eType != PieceType::PAWN || !enemy->logic.justDoubleMoved)
+						continue;
+
+					moves.push_back(Move(piece->pos, tryPos, MoveType::EN_PASSANT, enemy));
+
+				}
+
+				// Movement check
+				if (!attackOnly && !pieceAtPos)
+					moves.push_back(Move(piece->pos, tryPos, doubleMove ? MoveType::DOUBLE_MOVE : MoveType::FIXED));
+
+				// Attack check
+				if (!moveOnly && pieceAtPos && pieceAtPos->eColor == piece->eEnemyColor)
+					moves.push_back(Move(piece->pos, tryPos, MoveType::FIXED_AND_ATTACK, pieceAtPos));
+			}
+		}
 
 	private:
 		// En pasont, rank up
@@ -420,46 +504,30 @@ public:
 			std::vector<Move> moves;
 			bool debug = Debug::DebugPieceLogic & Debug::Pawn;
 
-			// Single move forword - Must have one empty space
-			if (board.boundedInMap({ piece->pos.x, piece->pos.y + piece->direction }) && !board.isPieceAt({ piece->pos.x, piece->pos.y + piece->direction }))
-			{
-				moves.push_back(Move(piece->pos, { piece->pos.x, piece->pos.y + piece->direction }, MoveType::FIXED));
+			if (debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
 
-				// Double move forword - Must have one additional empty space
-				if (firstMove && !board.isPieceAtBounded({ piece->pos.x, piece->pos.y + 2 * piece->direction }))
-					moves.push_back(Move(piece->pos, { piece->pos.x, piece->pos.y + 2 * piece->direction }, MoveType::FIXED));
-			}
-
-			// Attack left
-			if (board.isPieceAtBounded({ piece->pos.x - 1, piece->pos.y + piece->direction }, piece->eEnemyColor))
-				moves.push_back(Move(piece->pos, { piece->pos.x - 1, piece->pos.y + piece->direction }, MoveType::FIXED_AND_ATTACK, board.getPieceAt({ piece->pos.x - 1, piece->pos.y + piece->direction })));
-			// Attack right
-			if (board.isPieceAtBounded({ piece->pos.x + 1, piece->pos.y + piece->direction }, piece->eEnemyColor))
-				moves.push_back(Move(piece->pos, { piece->pos.x + 1, piece->pos.y + piece->direction }, MoveType::FIXED_AND_ATTACK, board.getPieceAt({ piece->pos.x + 1, piece->pos.y + piece->direction })));
-
-			// En Passant left
-			/*if (board.bounded  ({ pos.x - 1, pos.y + forword }) &&
-				board.isPieceAtBounded({ pos.x - 1, pos.y }, enemy) &&
-				board.getPieceAt({ pos.x - 1, pos.y })->eType == PieceType::PAWN &&
-				board.getPieceAt({ pos.x - 1, pos.y })->logic.doubleMoved)
-					moves.push_back(Move({ pos.x - 1, pos.y + forword }, MoveType::EN_PASSANT, board.getPieceAt({ pos.x - 1, pos.y })));
-			// En Passant right
-			if (board.bounded  ({ pos.x + 1, pos.y + forword }) &&
-				board.isPieceAtBounded({ pos.x + 1, pos.y }, enemy) &&
-				board.getPieceAt({ pos.x - 1, pos.y })->eType == PieceType::PAWN &&
-				board.getPieceAt({ pos.x - 1, pos.y })->logic.doubleMoved)
-					moves.push_back(Move({ pos.x + 1, pos.y + forword }, MoveType::EN_PASSANT, board.getPieceAt({ pos.x + 1, pos.y })));*/
+			appendFixedMoves(moves, piece, board, {
+				// Single move
+				{{ piece->pos.x    , piece->pos.y + piece->direction     }, { (int)FixedMoveFlags::MOVE_ONLY,   (int)FixedMoveFlags::NO_FLAG }},
+				{{ piece->pos.x    , piece->pos.y + piece->direction * 2 }, { (int)FixedMoveFlags::MOVE_ONLY,   (int)FixedMoveFlags::DOUBLE_MOVE }},
+				// Fixed attacks
+				{{ piece->pos.x - 1, piece->pos.y + piece->direction     }, { (int)FixedMoveFlags::ATTACK_ONLY, (int)FixedMoveFlags::NO_FLAG }},
+				{{ piece->pos.x + 1, piece->pos.y + piece->direction     }, { (int)FixedMoveFlags::ATTACK_ONLY, (int)FixedMoveFlags::NO_FLAG }},
+				// En passant
+				{{ piece->pos.x + 1, piece->pos.y + piece->direction     }, { (int)FixedMoveFlags::EN_PASSANT,  (int)FixedMoveFlags::NO_FLAG }},
+				{{ piece->pos.x - 1, piece->pos.y + piece->direction     }, { (int)FixedMoveFlags::EN_PASSANT,  (int)FixedMoveFlags::NO_FLAG }},
+			}, debug);
 
 			// Rank up if desired
 			if (!board.boundedInMap({ piece->pos.x, piece->pos.y + piece->direction }))
 				moves.push_back(Move(piece->pos, { piece->pos.x, piece->pos.y }, MoveType::RANK_UP));
-			/*
-			Log("Moves: " + std::to_string(moves.size()));
 
-			for (Move m : moves)
-				Log("  " + moveToString(m.eType));
-*/
-			if (debug) Log("");
+			if (debug) Log(" Valid moves: ");
+
+			if (debug) for (Move m : moves)
+				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
+
+			if(debug) Log("");
 
 			return moves;
 		}
@@ -472,7 +540,7 @@ public:
 
 			if (debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
 
-			diagonalLogic(moves, piece, bordered, board, debug);
+			appendDiagonalMoves(moves, piece, bordered, board, debug);
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
@@ -485,9 +553,30 @@ public:
 		std::vector<Move> knightLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
-			olc::vi2d pos = piece->pos;
-			int forword = piece->eColor == PieceColor::WHITE ? -1 : +1;
-			PieceColor enemy = getOpositeColor(piece->eColor);
+			bool debug = (Debug::DebugPieceLogic & Debug::Knight) != 0;
+
+			if (debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
+
+			appendFixedMoves(moves, piece, board, {
+				{{ piece->pos.x + 2, piece->pos.y + 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x + 1, piece->pos.y + 2}, NO_FIXED_FLAGS},
+
+				{{ piece->pos.x - 2, piece->pos.y + 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x + 1, piece->pos.y - 2}, NO_FIXED_FLAGS},
+
+				{{ piece->pos.x - 2, piece->pos.y - 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x - 1, piece->pos.y - 2}, NO_FIXED_FLAGS},
+
+				{{ piece->pos.x + 2, piece->pos.y - 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x - 1, piece->pos.y + 2}, NO_FIXED_FLAGS},
+			}, debug);
+
+			if (debug) Log(" Valid moves: ");
+
+			if (debug) for (Move m : moves)
+				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
+
+			if (debug) Log("");
 
 			return moves;
 		}
@@ -500,7 +589,7 @@ public:
 
 			if(debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
 
-			lineLogic(moves, piece, bordered, board, debug);
+			appendCrossMoves(moves, piece, bordered, board, debug);
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
@@ -513,10 +602,28 @@ public:
 		std::vector<Move> kingLogic(Piece* piece, GameBoard& board)
 		{
 			std::vector<Move> moves;
-			olc::vi2d pos = piece->pos;
-			int forword = piece->eColor == PieceColor::WHITE ? -1 : +1;
-			PieceColor enemy = getOpositeColor(piece->eColor);
+			bool debug = (Debug::DebugPieceLogic & Debug::King) != 0;
 
+			if (debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
+
+			appendFixedMoves(moves, piece, board, {
+				{{ piece->pos.x + 1, piece->pos.y + 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x + 0, piece->pos.y + 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x - 1, piece->pos.y + 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x - 1, piece->pos.y + 0}, NO_FIXED_FLAGS},
+				{{ piece->pos.x - 1, piece->pos.y - 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x + 0, piece->pos.y - 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x + 1, piece->pos.y - 1}, NO_FIXED_FLAGS},
+				{{ piece->pos.x + 1, piece->pos.y + 0}, NO_FIXED_FLAGS},
+			}, debug);
+
+			if (debug) Log(" Valid moves: ");
+
+			if (debug) for (Move m : moves)
+				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
+
+			if (debug) Log("");
+			
 			return moves;
 		}
 
@@ -528,8 +635,8 @@ public:
 
 			if (debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
 
-			lineLogic(moves, piece, bordered, board, debug);
-			diagonalLogic(moves, piece, bordered, board, debug);
+			appendCrossMoves(moves, piece, bordered, board, debug);
+			appendDiagonalMoves(moves, piece, bordered, board, debug);
 
 			if (debug) for (Move m : moves)
 				Log("    TO: " + m.endPos.str() + " TYPE: " + moveToString(m.eType));
@@ -540,11 +647,11 @@ public:
 		}
 
 	public:
-		PieceLogic(PieceType type) : firstMove( true ), eType( type ) { }
+		PieceLogic(PieceType type) : firstMove( true ) { }
 
 		std::vector<Move> runLogic(Piece* piece, GameBoard& board)
 		{
-			switch (eType)
+			switch (piece->eType)
 			{
 			case PieceType::PAWN:
 				return pawnLogic(piece, board);
@@ -618,9 +725,6 @@ public:
 				// Shortcut, if the end position is equal to the selected position
 				if (m.endPos == tryPos)
 				{
-					// No longer first move
-					logic.firstMove = false;
-
 					// If there is a second piece effected
 					if (m.secondaryPiece)
 					{
@@ -628,6 +732,12 @@ public:
 						if (m.eType != MoveType::CASTLE)
 							board->deletePieceAt(m.secondaryPiece->pos);
 					}
+
+					// No longer first move
+					logic.firstMove = false;
+					logic.moveCount++;
+					if (m.eType == MoveType::DOUBLE_MOVE) { logic.justDoubleMoved = true;  }
+					else logic.justDoubleMoved = false;
 
 					// Move to new location on the board and internally
 					board->movePiece(pos, tryPos);
@@ -647,9 +757,9 @@ public:
 
 					//	{ return isPositiveDiagonal(origin, limit) && isPositiveDiagonal(origin, check) && bouded(min(origin, limit), max(origin, limit), check); }
 
-					Log("Start: " + m.startPos.str() + " End: " + m.endPos.str() + " Try: " + tryPos.str());
-					Log("Is diag: " + std::to_string(board->isNegitiveDiagonal(m.startPos, m.endPos)) + " " + std::to_string(board->isNegitiveDiagonal(m.startPos, tryPos)));
-					Log("Pos: " + std::to_string(movePosDiag) + " Neg: " + std::to_string(moveNegDiag));
+					//Log("Start: " + m.startPos.str() + " End: " + m.endPos.str() + " Try: " + tryPos.str());
+					//Log("Is diag: " + std::to_string(board->isNegitiveDiagonal(m.startPos, m.endPos)) + " " + std::to_string(board->isNegitiveDiagonal(m.startPos, tryPos)));
+					//Log("Pos: " + std::to_string(movePosDiag) + " Neg: " + std::to_string(moveNegDiag));
 
 					// Either x or y is flat (horizontal or vertical), or x and y have a slope of 1 (diagonals)
 					if (!(moveHorizontal || moveVertical || movePosDiag || moveNegDiag))
@@ -657,6 +767,7 @@ public:
 
 					// No longer first move
 					logic.firstMove = false;
+					logic.moveCount++;
 
 					// Move to new location on the board and internally
 					board->movePiece(pos, tryPos);
@@ -667,6 +778,7 @@ public:
 
 					return true;
 				}
+
 			}
 
 			return false;
@@ -976,7 +1088,7 @@ public:
 		chessPieceSheet.loadAsset(this);
 		chessBoardPNG.loadAsset(this);
 
-		Debug::DebugPieceLogic |= Debug::Rook;
+		//Debug::DebugPieceLogic |= Debug::Pawn;
 
 		board.updateAllLogic();
 
@@ -985,7 +1097,6 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		Clear(olc::BACK);
 		DrawDecal({ 0,0 }, chessBoardPNG.decal, {0.81f, 0.81f}, olc::Pixel(220, 220, 220));
 		board.drawBoard(this);
 
