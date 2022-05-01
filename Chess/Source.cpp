@@ -16,7 +16,7 @@
 #define BQUN new Piece(PieceType::QUEEN, PieceColor::BLACK)
 #define BKNG new Piece(PieceType::KING, PieceColor::BLACK)
 
-#define NONE nullptr
+#define BLNK nullptr
 
 #define SELECTED_COLOR olc::Pixel(0, 0, 255, 155)
 #define MOVE_COLOR olc::Pixel(0, 255, 0, 155)
@@ -112,6 +112,14 @@ namespace Game {
 
 	typedef v2dPair<int32_t> vi2dPair;
 	typedef v2dPair<bool> vb2dPair;
+
+	template <class T, class U>
+	struct pair {
+		T a;
+		U b;
+
+		pair(T first, U seccond) : a(first), b(seccond) {}
+	};
 }
 
 class Chess : public olc::PixelGameEngine
@@ -136,6 +144,14 @@ public:
 		RANK_UP,
 		// King & rook
 		CASTLE
+	};
+
+	enum class Direction {
+		NONE,
+		HORIZONTAL,
+		VERTICAL,
+		POSITIVE_DIAGONAL,
+		NEGITIVE_DIAGONAL
 	};
 
 	enum class PieceType {
@@ -332,6 +348,29 @@ public:
 		}
 	};
 
+	struct kingState {
+		Piece* ptr;
+		std::set<olc::vi2d> validMoves;
+		bool check;
+
+		void fillKingMap()
+		{
+			validMoves.clear();
+
+			olc::vi2d pos = ptr->pos;
+
+			// TODO: Not the best... I'm tired ok...
+			validMoves.emplace(pos + olc::vi2d{ 1, 1 });
+			validMoves.emplace(pos + olc::vi2d{ 0, 1 });
+			validMoves.emplace(pos + olc::vi2d{ -1, 1 });
+			validMoves.emplace(pos + olc::vi2d{ -1, 0 });
+			validMoves.emplace(pos + olc::vi2d{ -1,-1 });
+			validMoves.emplace(pos + olc::vi2d{ 0,-1 });
+			validMoves.emplace(pos + olc::vi2d{ 1,-1 });
+			validMoves.emplace(pos + olc::vi2d{ 1, 0 });
+		}
+	};
+
 	struct PieceLogic {
 	public:
 		bool firstMove = false, justDoubleMoved = false;
@@ -392,8 +431,8 @@ public:
 		// Run logic for a generic cross move type
 		void appendCrossMoves(std::vector<Move>& moves, Piece* piece, Game::vb2dPair bordered, GameBoard& board, bool debug)
 		{
-			Game::vi2dPair horizontalEnds = board.findOnHorizontal(piece->pos),
-						   verticalEnds = board.findOnVertical(piece->pos);
+			Game::vi2dPair horizontalEnds = board.findOnLine(piece->pos, { +1, 0 }),
+						   verticalEnds = board.findOnLine(piece->pos, { 0,-1 });
 
 			appendSegmentMove(moves, piece, horizontalEnds.a, !bordered.a.y, board, debug, 1);
 			appendSegmentMove(moves, piece, horizontalEnds.b, !bordered.a.x, board, debug, 2);
@@ -407,8 +446,8 @@ public:
 		// Run logic for a generic X move type
 		void appendDiagonalMoves(std::vector<Move>& moves, Piece* piece, Game::vb2dPair bordered, GameBoard& board, bool debug)
 		{
-			Game::vi2dPair positiveDiagonalEnds = board.findOnPositiveDiagonal(piece->pos),
-						   negitiveDiagonalEnds = board.findOnNegitiveDiagonal(piece->pos);
+			Game::vi2dPair positiveDiagonalEnds = board.findOnLine(piece->pos, {+1,-1}),
+						   negitiveDiagonalEnds = board.findOnLine(piece->pos, {-1,-1});
 
 			appendSegmentMove(moves, piece, positiveDiagonalEnds.a, !bordered.a.y && !bordered.b.y, board, debug, 1);
 			appendSegmentMove(moves, piece, positiveDiagonalEnds.b, !bordered.a.x && !bordered.b.x, board, debug, 2);
@@ -476,7 +515,7 @@ public:
 					(enPassant		? "EN_PASSANT " : "")
 				);
 
-				if (enPassant)
+				if (enPassant && !pieceAtPos)
 				{
 					Piece* enemy = board.getPieceAt(tryPos - olc::vi2d{ 0, piece->direction });
 
@@ -493,7 +532,10 @@ public:
 
 				// Attack check
 				if (!moveOnly && pieceAtPos && pieceAtPos->eColor == piece->eEnemyColor)
+				{
+					if (pieceAtPos->eType == PieceType::KING) board.setCheck(piece->eEnemyColor);
 					moves.push_back(Move(piece->pos, tryPos, MoveType::FIXED_AND_ATTACK, pieceAtPos));
+				}
 			}
 		}
 
@@ -599,14 +641,18 @@ public:
 			return moves;
 		}
 
-		std::vector<Move> kingLogic(Piece* piece, GameBoard& board)
+		std::vector<Move> kingLogic(Piece* piece, GameBoard& board, kingState& state)
 		{
 			std::vector<Move> moves;
 			bool debug = (Debug::DebugPieceLogic & Debug::King) != 0;
 
 			if (debug) Log("Color: " + std::to_string((int)piece->eColor) + " Pos: " + piece->pos.str());
 
-			appendFixedMoves(moves, piece, board, {
+			std::vector<Game::vi2dPair> tryMoves;
+
+			for (olc::vi2d pos : state.validMoves) tryMoves.push_back(Game::vi2dPair{pos, NO_FIXED_FLAGS });
+
+			appendFixedMoves(moves, piece, board, tryMoves /*{
 				{{ piece->pos.x + 1, piece->pos.y + 1}, NO_FIXED_FLAGS},
 				{{ piece->pos.x + 0, piece->pos.y + 1}, NO_FIXED_FLAGS},
 				{{ piece->pos.x - 1, piece->pos.y + 1}, NO_FIXED_FLAGS},
@@ -615,7 +661,7 @@ public:
 				{{ piece->pos.x + 0, piece->pos.y - 1}, NO_FIXED_FLAGS},
 				{{ piece->pos.x + 1, piece->pos.y - 1}, NO_FIXED_FLAGS},
 				{{ piece->pos.x + 1, piece->pos.y + 0}, NO_FIXED_FLAGS},
-			}, debug);
+			}*/, debug);
 
 			if (debug) Log(" Valid moves: ");
 
@@ -665,15 +711,21 @@ public:
 			case PieceType::ROOK:
 				return rookLogic(piece, board);
 				break;
-			case PieceType::KING:
-				return kingLogic(piece, board);
-				break;
+			//case PieceType::KING:
+			//	return kingLogic(piece, board);
+			//	break;
 			case PieceType::QUEEN:
 				return queenLogic(piece, board);
 				break;
 			default:
 				return std::vector<Move>();
 			}
+		}
+
+		std::vector<Move> runLogic(Piece* piece, GameBoard& board, kingState& state)
+		{
+			if (piece->eType == PieceType::KING)
+				kingLogic(piece, board, state);
 		}
 	};
 
@@ -750,19 +802,7 @@ public:
 				}
 				else if (m.eType == MoveType::LINE || m.eType == MoveType::LINE_AND_ATTACK)
 				{
-					bool moveHorizontal = board->isHorizontalBounded(m.startPos, m.endPos, tryPos);
-					bool moveVertical = board->isVerticalBounded(m.startPos, m.endPos, tryPos);
-					bool movePosDiag = board->isPositiveDiagonalBounded(m.startPos, m.endPos, tryPos);
-					bool moveNegDiag = board->isNegitiveDiagonalBounded(m.startPos, m.endPos, tryPos);
-
-					//	{ return isPositiveDiagonal(origin, limit) && isPositiveDiagonal(origin, check) && bouded(min(origin, limit), max(origin, limit), check); }
-
-					//Log("Start: " + m.startPos.str() + " End: " + m.endPos.str() + " Try: " + tryPos.str());
-					//Log("Is diag: " + std::to_string(board->isNegitiveDiagonal(m.startPos, m.endPos)) + " " + std::to_string(board->isNegitiveDiagonal(m.startPos, tryPos)));
-					//Log("Pos: " + std::to_string(movePosDiag) + " Neg: " + std::to_string(moveNegDiag));
-
-					// Either x or y is flat (horizontal or vertical), or x and y have a slope of 1 (diagonals)
-					if (!(moveHorizontal || moveVertical || movePosDiag || moveNegDiag))
+					if (!board->isLineBounded(m.startPos, m.endPos, tryPos))
 						continue;
 
 					// No longer first move
@@ -790,25 +830,31 @@ public:
 		}
 	};
 
-	struct GameBoard {
+	class GameBoard {
 		const std::vector<Piece*> defaultBoard {
 		//    A     B     C     D     E     F     G     H
 			BROK, BKNT, BBSP, BQUN, BKNG, BBSP, BKNT, BROK, // 8
 			BPWN, BPWN, BPWN, BPWN, BPWN, BPWN, BPWN, BPWN, // 7
-			NONE, NONE, NONE, NONE, NONE, NONE, NONE, NONE, // 6
-			NONE, NONE, NONE, NONE, NONE, NONE, NONE, NONE, // 5
-			NONE, NONE, NONE, NONE, NONE, NONE, NONE, NONE, // 4
-			NONE, NONE, NONE, NONE, NONE, NONE, NONE, NONE, // 3
+			BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, // 6
+			BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, // 5
+			BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, // 4
+			BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, BLNK, // 3
 			WPWN, WPWN, WPWN, WPWN, WPWN, WPWN, WPWN, WPWN, // 2
 			WROK, WKNT, WBSP, WQUN, WKNG, WBSP, WKNT, WROK, // 1
 		};
 
+	public:
 		std::vector<Piece*> board;
 		olc::vi2d selectedPiece;
 		bool isPieceSelected;
 		PieceColor eColor;
 		int turn;
 
+		kingState whiteKing, blackKing;
+
+	private:
+
+	public:
 		GameBoard()
 		{
 			board = defaultBoard;
@@ -819,10 +865,15 @@ public:
 				for (int k = 0; k < 8; k++)
 					if(board[vtoi({ k, i })])
 						board[vtoi({ k, i })]->pos = { k, i };
+
+			whiteKing.ptr = board[vtoi({ 4, 7 })];
+			blackKing.ptr = board[vtoi({ 4, 0 })];
 		}
 
 		bool boundedInMap(olc::vi2d pos) { return pos.x >= 0 && pos.y >= 0 && pos.x < 8 && pos.y < 8; }
 		Piece* getPieceAt(olc::vi2d pos) { return boundedInMap(pos) ? board[vtoi(pos)] : nullptr; }
+
+		void setCheck(PieceColor color) {  }
 
 		bool isOnAnyBoarder(olc::vi2d pos) { return pos.x == 0 || pos.x == 7 || pos.y == 0 || pos.y == 7; }
 		// a = { left, right }, b = { bottom, top }
@@ -834,158 +885,64 @@ public:
 
 		void deletePieceAt(olc::vi2d pos) { if(boundedInMap(pos)) board[vtoi(pos)] = nullptr; }
 		void movePiece(olc::vi2d from, olc::vi2d to) { if (getPieceAt(from) && !getPieceAt(to)) { board[vtoi(to)] = getPieceAt(from); deletePieceAt(from); } }
-		void updateAllLogic() { for (Piece* p : board) if (p) { p->updLogic(this); } if (Debug::DebugPieceLogic != 0) Log(""); }
-
-		// a = Right, b = Left
-		Game::vi2dPair findOnHorizontal(olc::vi2d start)
+		void updateAllLogic()
 		{
-			bool endR = false, endL = false;
-			Game::vi2dPair out;
-			out.a = { -1,-1 };
-			out.b = { -1,-1 };
+			whiteKing.fillKingMap();
+			blackKing.fillKingMap();
 
-			for (int i = 1; !endR || !endL; i++)
-			{
-				// Never runs into a piece, vector stays as -1, -1
-				if (!endR && !boundedInMap({ start.x + i, start.y }))
-				{
-					out.a = { start.x + (i - 1), start.y };
-					endR = true;
-				}
-				// Runs into a piece, vector becomes that position
-				else if (!endR && isPieceAt({ start.x + i, start.y }))
-				{
-					out.a = { start.x + i, start.y };
-					endR = true;
-				}
+			for (Piece* p : board) if (p && p->eType != PieceType::KING) { p->updLogic(this); }
 
-				// Never runs into a piece, vector stays as -1, -1
-				if (!endL && !boundedInMap({ start.x - i, start.y }))
-				{
-					out.b = { start.x - (i - 1), start.y };
-					endL = true;
-				}
-				// Runs into a piece, vector becomes that position
-				else if (!endL && isPieceAt({ start.x - i, start.y }))
-				{
-					out.b = { start.x - i, start.y };
-					endL = true;
-				}
-			}
+			if (whiteKing.validMoves.empty()) Log("CHECKMATE! BLACK WINS!");
+			else { for (olc::vi2d pos : whiteKing.validMoves) {  } }
 
-			return out;
+			if (blackKing.validMoves.empty()) Log("CHECKMATE! WHITE WINS!");
+
+			if (Debug::DebugPieceLogic != 0) Log("");
 		}
 
-		// a = Up, b = Down
-		Game::vi2dPair findOnVertical(olc::vi2d start)
+		// Horizont = {+1, 0} : a = Right, b = Left
+		// Vertical = { 0,-1} : a = Up, b = Down
+		// Pos diag = {+1,-1} : a = Top, b = Bottom
+		// Neg diag = {-1,-1} : a = Top, b = Bottom
+		// a = negitive end, b = positive end
+		Game::vi2dPair findOnLine(olc::vi2d start, olc::vi2d slope)
 		{
-			bool endD = false, endU = false;
+			bool endA = false, endB = false;
 			Game::vi2dPair out;
-			out.a = { -1,-1 };
-			out.b = { -1,-1 };
 
-			for (int i = 1; !endD || !endU; i++)
-			{
-				// Never runs into a piece, vector stays as -1, -1
-				if (!endU && !boundedInMap({ start.x, start.y - i }))
-				{
-					out.a = { start.x, start.y - (i - 1) };
-					endU = true;
-				}
-				// Runs into a piece, vector becomes that position
-				else if (!endU && isPieceAt({ start.x, start.y - i }))
-				{
-					out.a = { start.x, start.y - i };
-					endU = true;
-				}
-
-				// Never runs into a piece, vector stays as -1, -1
-				if (!endD && !boundedInMap({ start.x, start.y + i }))
-				{
-					out.b = { start.x, start.y + (i - 1) };
-					endD = true;
-				}
-				// Runs into a piece, vector becomes that position
-				else if (!endD && isPieceAt({ start.x, start.y + i }))
-				{
-					out.b = { start.x, start.y + i };
-					endD = true;
-				}
-			}
-
-			return out;
-		}
-
-		// a = Top, b = Bottom
-		Game::vi2dPair findOnPositiveDiagonal(olc::vi2d start)
-		{
-			bool endT = false, endB = false;
-			Game::vi2dPair out;
-			//out.a = { 0, 0 };
-			//out.b = { 0, 0 };
-			out.a = { -1,-1 };
-			out.b = { -1,-1 };
-
-			for (int i = 1; !endT || !endB; i++)
-			{
-				// Runs into a piece or wall, vector becomes that position
-				if (!endT && !boundedInMap({ start.x + i, start.y - i }))
-				{
-					out.a = { start.x + (i - 1), start.y - (i - 1) };
-					endT = true;
-				}
-				else if (!endT && isPieceAt({ start.x + i, start.y - i }))
-				{
-					out.a = { start.x + i, start.y - i };
-					endT = true;
-				}
-
-				if (!endB && !boundedInMap({ start.x - i, start.y + i }))
-				{
-					out.b = { start.x - (i - 1), start.y + (i - 1) };
-					endB = true;
-				}
-				else if (!endB && isPieceAt({ start.x - i, start.y + i }))
-				{
-					out.b = { start.x - i, start.y + i };
-					endB = true;
-				}
-			}
-
-			return out;
-		}
-
-		// a = Top, b = Bottom
-		Game::vi2dPair findOnNegitiveDiagonal(olc::vi2d start)
-		{
-			bool endT = false, endB = false;
-			Game::vi2dPair out;
-			out.a = { -1,-1 };
-			out.b = { -1,-1 };
-
-			for (int i = 1; !endT || !endB; i++)
+			for (int i = 1; !endA || !endB; i++)
 			{
 				// Runs into a piece, vector becomes that position
-				if (!endT && !boundedInMap({ start.x - i, start.y - i }))
+				if (!endA)
 				{
-					out.a = { start.x - (i - 1), start.y - (i - 1) };
-					endT = true;
-				}
-				else if (!endT && isPieceAt({ start.x - i, start.y - i }))
-				{
-					out.a = { start.x - i, start.y - i };
-					endT = true;
+					olc::vi2d newPos = { start.x + (i * slope.x), start.y + (i * slope.y) };
+
+					if (!boundedInMap(newPos))
+					{
+						out.a = newPos - slope;
+						endA = true;
+					}
+					else if (isPieceAt(newPos))
+					{
+						out.a = newPos;
+						endA = true;
+					}
 				}
 
-				if (!endB && !boundedInMap({ start.x + i, start.y + i }))
+				if (!endB)
 				{
-					out.b = { start.x + (i - 1), start.y + (i - 1) };
-					endB = true;
-				}
-				else if (!endB && isPieceAt({ start.x + i, start.y + i }))
-				{
-					out.b = { start.x + i, start.y + i };
-					endB = true;
+					olc::vi2d newPos = { start.x - (i * slope.x), start.y - (i * slope.y) };
+
+					if (!boundedInMap(newPos))
+					{
+						out.b = newPos + slope;
+						endB = true;
+					}
+					else if (isPieceAt(newPos))
+					{
+						out.b = newPos;
+						endB = true;
+					}
 				}
 			}
 
@@ -993,24 +950,55 @@ public:
 		}
 
 		bool isHorizontal(olc::vi2d pos1, olc::vi2d pos2) { return pos1.y == pos2.y && pos1.x != pos2.x; }
-		bool isHorizontalBounded(olc::vi2d origin, olc::vi2d limit, olc::vi2d check)
-		{ return isHorizontal(origin, limit) && isHorizontal(origin, check) && bounded(min(origin.x, limit.x), max(origin.x, limit.x), check.x); }
 		bool isVertical(olc::vi2d pos1, olc::vi2d pos2) { return pos1.x == pos2.x && pos1.y != pos2.y; }
-		bool isVerticalBounded(olc::vi2d origin, olc::vi2d limit, olc::vi2d check)
-		{ return isVertical(origin, limit) && isVertical(origin, check) && bounded(min(origin.y, limit.y), max(origin.y, limit.y), check.y); }
 		bool isStraight(olc::vi2d pos1, olc::vi2d pos2) { return isHorizontal(pos1, pos2) || isVertical(pos1, pos2); }
-		bool isStraightBounded(olc::vi2d origin, olc::vi2d limit, olc::vi2d check)
-		{ return isHorizontalBounded(origin, limit, check) || isVerticalBounded(origin, limit, check); }
 
 		bool isPositiveDiagonal(olc::vi2d pos1, olc::vi2d pos2) { return (pos1 - pos2).x == -(pos1 - pos2).y; }
-		bool isPositiveDiagonalBounded(olc::vi2d origin, olc::vi2d limit, olc::vi2d check)
-		{ return isPositiveDiagonal(origin, limit) && isPositiveDiagonal(origin, check) && bounded(min(origin, limit), max(origin, limit), check); }
 		bool isNegitiveDiagonal(olc::vi2d pos1, olc::vi2d pos2) { return (pos1 - pos2).x ==  (pos1 - pos2).y; }
-		bool isNegitiveDiagonalBounded(olc::vi2d origin, olc::vi2d limit, olc::vi2d check)
-		{ return isNegitiveDiagonal(origin, limit) && isNegitiveDiagonal(origin, check) && bounded(min(origin, limit), max(origin, limit), check); }
 		bool isDiagonal(olc::vi2d pos1, olc::vi2d pos2) { return isPositiveDiagonal(pos1, pos2) || isNegitiveDiagonal(pos1, pos2); }
-		bool isDiagonalBounded(olc::vi2d origin, olc::vi2d limit, olc::vi2d check)
-		{ return isPositiveDiagonalBounded(origin, limit, check) || isNegitiveDiagonalBounded(origin, limit, check); }
+
+		std::pair<bool, Direction> getLineBoundedInfo(olc::vi2d origin, olc::vi2d limit, olc::vi2d check)
+		{
+			if (isHorizontal(origin, limit))
+			{
+				if(isHorizontal(origin, check) && bounded(min(origin.x, limit.x), max(origin.x, limit.x), check.x))
+					return std::pair<bool, Direction>(true, Direction::HORIZONTAL);
+				else
+					return std::pair<bool, Direction>(false, Direction::HORIZONTAL);
+			}
+
+			else if (isVertical(origin, limit))
+			{
+				if (isVertical(origin, check) && bounded(min(origin.y, limit.y), max(origin.y, limit.y), check.y))
+					return std::pair<bool, Direction>(true, Direction::VERTICAL);
+				else
+					return std::pair<bool, Direction>(false, Direction::VERTICAL);
+			}
+
+			else if (isPositiveDiagonal(origin, limit))
+			{
+				if (isPositiveDiagonal(origin, check) && bounded(min(origin, limit), max(origin, limit), check))
+					return std::pair<bool, Direction>(true, Direction::POSITIVE_DIAGONAL);
+				else
+					return std::pair<bool, Direction>(false, Direction::POSITIVE_DIAGONAL);
+			}
+
+			else if (isHorizontal(origin, limit))
+			{
+				if (isHorizontal(origin, check) && bounded(min(origin, limit), max(origin, limit), check))
+					return std::pair<bool, Direction>(true, Direction::NEGITIVE_DIAGONAL);
+				else
+					return std::pair<bool, Direction>(false, Direction::NEGITIVE_DIAGONAL);
+			}
+		}
+
+		bool isLineBounded(olc::vi2d origin, olc::vi2d limit, olc::vi2d check)
+		{
+			return (isHorizontal(origin, limit) && isHorizontal(origin, check) && bounded(min(origin.x, limit.x), max(origin.x, limit.x), check.x)) ||
+				(isVertical(origin, limit) && isVertical(origin, check) && bounded(min(origin.y, limit.y), max(origin.y, limit.y), check.y)) || 
+				(isPositiveDiagonal(origin, limit) && isPositiveDiagonal(origin, check) && bounded(min(origin, limit), max(origin, limit), check)) ||
+				(isNegitiveDiagonal(origin, limit) && isNegitiveDiagonal(origin, check) && bounded(min(origin, limit), max(origin, limit), check));
+		}
 
 		olc::vi2d screenToBoard(olc::vi2d pos) { return { pos.x / 64, pos.y / 64 }; }
 
