@@ -112,14 +112,6 @@ namespace Game {
 
 	typedef v2dPair<int32_t> vi2dPair;
 	typedef v2dPair<bool> vb2dPair;
-
-	template <class T, class U>
-	struct pair {
-		T a;
-		U b;
-
-		pair(T first, U seccond) : a(first), b(seccond) {}
-	};
 }
 
 class Chess : public olc::PixelGameEngine
