@@ -31,8 +31,7 @@ public:
 
 	static void Log(int level, std::string msg)
 	{
-		if (_DEBUG)
-			std::cout << LOGTXT[level] << msg << std::endl;
+		std::cout << LOGTXT[level] << msg << std::endl;
 	}
 
 	struct collider;
@@ -277,8 +276,6 @@ public:
 			// Final value, indicates if the X or Y has been entered
 			return		collideTopRight ^ collideBottomLeft;
 		}
-
-		virtual collisionReport generateReport() {}
 
 		// Checks for rectangle collision by default
 		virtual olc::vb2d reactToCollision(collider& _check, float fElapsedTIme, int debug = 0, std::string _name = "")
