@@ -1,5 +1,7 @@
 #include "olcPixelGameEngine.h"
 
+#include "PhysicsBase.h"
+
 #define SCREENWIDTH 512
 #define SCREENHEIGHT 480
 #define SCREENDIM olc::vi2d(SCREENWIDTH, SCREENHEIGHT)
