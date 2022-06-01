@@ -138,13 +138,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="NonRotationalPhysics.h" />
-    <ClInclude Include="PhysicsBase.h" />
-    <ClInclude Include="olcPixelGameEngine.h" />
+    <ClCompile Include="PhysicsMain.cpp" />
+    <ClCompile Include="olcPixelGameEngine.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="PhysicsMain2.cpp" />
-    <ClCompile Include="olcPixelGameEngine.cpp" />
+    <ClInclude Include="olcPixelGameEngine.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
