@@ -66,9 +66,10 @@ public:
 public:
 
 	enum class piece : char {
-		X = 'X',
-		O = 'O',
-		N = ' '
+		X = 'X', // X's piece
+		O = 'O', // O's piece
+		N = ' ', // No one's space
+		F = 'F', // Full board
 	};
 
 	ASSETS::sheet assetSheet = ASSETS::sheet("Tic-Tac-Toe_Sheet.png", { 16, 16 }, { 3, 1 });
@@ -136,7 +137,13 @@ public:
 			if (avgA == (int)'O' || avgB == (int)'O') return piece::O;
 		}
 
-		return piece::N;
+		// Check if any more pieces can be placed
+		for (std::vector<piece> r : board)
+			for (piece p : r)
+				if (p == piece::N) return piece::N;
+
+		// Otherwise, the board is full
+		return piece::F;
 	}
 
 	// Set all cells to none

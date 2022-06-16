@@ -291,7 +291,7 @@
 
 #pragma region hello_world_example
 // O------------------------------------------------------------------------------O
-// | TicTacToe "Hello World" Program (main.cpp)                                     |
+// | Example "Hello World" Program (main.cpp)                                     |
 // O------------------------------------------------------------------------------O
 /*
 
@@ -299,13 +299,13 @@
 #include "olcPixelGameEngine.h"
 
 // Override base class with your custom functionality
-class TicTacToe : public olc::PixelGameEngine
+class Example : public olc::PixelGameEngine
 {
 public:
-	TicTacToe()
+	Example()
 	{
 		// Name your application
-		sAppName = "TicTacToe";
+		sAppName = "Example";
 	}
 
 public:
@@ -327,7 +327,7 @@ public:
 
 int main()
 {
-	TicTacToe demo;
+	Example demo;
 	if (demo.Construct(256, 240, 4, 4))
 		demo.Start();
 	return 0;
