@@ -22,6 +22,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Tic-Tac-Toe", "Tic-Tac-Toe\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RandNumPiAprox", "RandNumPiAprox\RandNumPiAprox.vcxproj", "{D4706C17-1E2E-4CFC-AC7A-12388FE01C2D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WorldAndCamera", "WorldAndCamera\WorldAndCamera.vcxproj", "{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -78,6 +80,14 @@ Global
 		{D4706C17-1E2E-4CFC-AC7A-12388FE01C2D}.Release|x64.Build.0 = Release|x64
 		{D4706C17-1E2E-4CFC-AC7A-12388FE01C2D}.Release|x86.ActiveCfg = Release|Win32
 		{D4706C17-1E2E-4CFC-AC7A-12388FE01C2D}.Release|x86.Build.0 = Release|Win32
+		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Debug|x64.ActiveCfg = Debug|x64
+		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Debug|x64.Build.0 = Debug|x64
+		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Debug|x86.ActiveCfg = Debug|Win32
+		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Debug|x86.Build.0 = Debug|Win32
+		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Release|x64.ActiveCfg = Release|x64
+		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Release|x64.Build.0 = Release|x64
+		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Release|x86.ActiveCfg = Release|Win32
+		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
