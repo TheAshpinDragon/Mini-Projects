@@ -24,6 +24,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RandNumPiAprox", "RandNumPi
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WorldAndCamera", "WorldAndCamera\WorldAndCamera.vcxproj", "{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BayesianStatisticsPosGuess", "BayesianStatisticsPosGuess\BayesianStatisticsPosGuess.vcxproj", "{A37D8978-860C-4B4A-A584-9D4B565CFF7C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -88,6 +90,14 @@ Global
 		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Release|x64.Build.0 = Release|x64
 		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Release|x86.ActiveCfg = Release|Win32
 		{35BFA91A-E867-41B5-ACB6-295E9EDC50AB}.Release|x86.Build.0 = Release|Win32
+		{A37D8978-860C-4B4A-A584-9D4B565CFF7C}.Debug|x64.ActiveCfg = Debug|x64
+		{A37D8978-860C-4B4A-A584-9D4B565CFF7C}.Debug|x64.Build.0 = Debug|x64
+		{A37D8978-860C-4B4A-A584-9D4B565CFF7C}.Debug|x86.ActiveCfg = Debug|Win32
+		{A37D8978-860C-4B4A-A584-9D4B565CFF7C}.Debug|x86.Build.0 = Debug|Win32
+		{A37D8978-860C-4B4A-A584-9D4B565CFF7C}.Release|x64.ActiveCfg = Release|x64
+		{A37D8978-860C-4B4A-A584-9D4B565CFF7C}.Release|x64.Build.0 = Release|x64
+		{A37D8978-860C-4B4A-A584-9D4B565CFF7C}.Release|x86.ActiveCfg = Release|Win32
+		{A37D8978-860C-4B4A-A584-9D4B565CFF7C}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
