@@ -333,17 +333,28 @@ public:
 		
 		std::vector<olc::Key> KeyList {
 			olc::NONE,
-			olc::A, olc::B, olc::C, olc::D, olc::E, olc::F, olc::G, olc::H, olc::I, olc::J, olc::K, olc::L, olc::M, olc::N, olc::O, olc::P, olc::Q, olc::R, olc::S, olc::T, olc::U, olc::V, olc::W, olc::X, olc::Y, olc::Z,
+			// Aphabet
+			olc::A, olc::B, olc::C, olc::D, olc::E, olc::F, olc::G, olc::H, olc::I, olc::J, olc::K, olc::L, olc::M,
+			olc::N, olc::O, olc::P, olc::Q, olc::R, olc::S, olc::T, olc::U, olc::V, olc::W, olc::X, olc::Y, olc::Z,
+			// Top row (0-9 & special)
 			olc::K0, olc::K1, olc::K2, olc::K3, olc::K4, olc::K5, olc::K6, olc::K7, olc::K8, olc::K9,
+			// F-keys
 			olc::F1, olc::F2, olc::F3, olc::F4, olc::F5, olc::F6, olc::F7, olc::F8, olc::F9, olc::F10, olc::F11, olc::F12,
+			// Arrow keys
 			olc::UP, olc::DOWN, olc::LEFT, olc::RIGHT,
-			olc::SPACE, olc::TAB, olc::SHIFT, olc::CTRL, olc::INS, olc::DEL, olc::HOME, olc::END, olc::PGUP, olc::PGDN,
-			olc::BACK, olc::ESCAPE, olc::RETURN, olc::ENTER, olc::PAUSE, olc::SCROLL,
+			// Whitespace			// Modifiers
+			olc::SPACE, olc::TAB,	olc::SHIFT, olc::CTRL,
+			// Six-key island, mouseless navigation
+			olc::INS, olc::DEL, olc::HOME, olc::END, olc::PGUP, olc::PGDN, olc::BACK, olc::ESCAPE,
+			// Newline					// Misc
+			olc::RETURN, olc::ENTER,	olc::PAUSE, olc::SCROLL,
+			// Numpad
 			olc::NP0, olc::NP1, olc::NP2, olc::NP3, olc::NP4, olc::NP5, olc::NP6, olc::NP7, olc::NP8, olc::NP9,
-			olc::NP_MUL, olc::NP_DIV, olc::NP_ADD, olc::NP_SUB, olc::NP_DECIMAL, olc::PERIOD,
-			olc::EQUALS, olc::COMMA, olc::MINUS,
-			olc::OEM_1, olc::OEM_2, olc::OEM_3, olc::OEM_4, olc::OEM_5, olc::OEM_6, olc::OEM_7, olc::OEM_8,
-			olc::CAPS_LOCK, olc::ENUM_END
+			olc::NP_MUL, olc::NP_DIV, olc::NP_ADD, olc::NP_SUB, olc::NP_DECIMAL,
+			// PERIOD(.>), EQUALS(=+), COMMA(,<), MINUS(-_), OEM_1(;:), OEM_2(/?), OEM_3(`~), OEM_4([{), OEM_5(\|), OEM_6(]}), OEM_7('"), OEM_8(OTHER),
+			olc::PERIOD, olc::EQUALS, olc::COMMA, olc::MINUS, olc::OEM_1, olc::OEM_2, olc::OEM_3, olc::OEM_4, olc::OEM_5, olc::OEM_6, olc::OEM_7, olc::OEM_8,
+			olc::CAPS_LOCK,
+			olc::ENUM_END
 		};
 		std::map<olc::Key, char> KeyCharMap {
 			{olc::NONE, 0},
